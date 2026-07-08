@@ -38,7 +38,13 @@
     "cookie-parser": "^1.4.6",
     "resend": "^3.5.0",
     "node-fetch": "^3.3.2",
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "@mdn/mdn-http-observatory": "^1.6.2"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "overrides": {
+    "http-cookie-agent": {
+      "agent-base": "^6.0.2"
+    }
+  }
 }

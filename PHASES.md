@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 4 — Baseline Scanner (Core)
+## ▶ CURRENT PHASE: Phase 5 — Dashboard & Analytics
 
 ---
 
@@ -91,35 +91,35 @@ Added beyond the original file list, needed to satisfy the spec: `cookie-parser`
 
 ---
 
-## Phase 4 — Baseline Scanner (Core)
+## Phase 4 — Baseline Scanner (Core) ✅
 **Goal:** End-to-end async scan: trigger → queue → worker → normalize → DB → Socket.io event.  
 **Depends on:** Phase 3  
 **NOTE: Most complex phase — build step by step.**
 
 ### Models
-- [ ] `server/models/Scan.js`
-- [ ] `server/models/Vulnerability.js`
-- [ ] `server/models/ScanRateLimit.js`
+- [x] `server/models/Scan.js`
+- [x] `server/models/Vulnerability.js`
+- [x] `server/models/ScanRateLimit.js`
 
 ### Scanner Tools + Services
-- [ ] `server/services/queue/scanQueue.js` — BullMQ Queue definition + enqueueScan()
-- [ ] `server/services/scanner/tools/observatoryRunner.js`
-- [ ] `server/services/scanner/tools/sslyzeRunner.js`
-- [ ] `server/services/scanner/normalizer.js` — Observatory + SSLyze output → unified finding
-- [ ] `server/services/scoring/scoreEngine.js` — deterministic score calculation
+- [x] `server/services/queue/scanQueue.js` — BullMQ Queue definition + enqueueScan()
+- [x] `server/services/scanner/tools/observatoryRunner.js`
+- [x] `server/services/scanner/tools/sslyzeRunner.js`
+- [x] `server/services/scanner/normalizer.js` — Observatory + SSLyze output → unified finding
+- [x] `server/services/scoring/scoreEngine.js` — deterministic score calculation
 
 ### Worker (separate process)
-- [ ] `server/services/queue/scanWorker.js` — full processor: run tools → normalize → deduplicate → score → save → emit
-- [ ] `server/workers/index.js` — worker entry point
+- [x] `server/services/queue/scanWorker.js` — full processor: run tools → normalize → deduplicate → score → save → emit
+- [x] `server/workers/index.js` — worker entry point
 
 ### API + Socket.io
-- [ ] `server/schemas/scanSchemas.js`
-- [ ] `server/controllers/scanController.js` — createScan, getScan, listScansForWebsite, getFindings
-- [ ] `server/controllers/vulnerabilityController.js` — list (filters), get, update, stats
-- [ ] `server/routes/scanRouter.js`
-- [ ] `server/routes/vulnerabilityRouter.js`
-- [ ] `server/routes/internalRouter.js` — POST /internal/emit (internal API key auth)
-- [ ] Wire all routes into `app.js`
+- [x] `server/schemas/scanSchemas.js`
+- [x] `server/controllers/scanController.js` — createScan, getScan, listScansForWebsite, getFindings
+- [x] `server/controllers/vulnerabilityController.js` — list (filters), get, update, stats
+- [x] `server/routes/scanRouter.js`
+- [x] `server/routes/vulnerabilityRouter.js`
+- [x] `server/routes/internalRouter.js` — POST /internal/emit (internal API key auth)
+- [x] Wire all routes into `app.js`
 
 ### Done When
 - POST /api/scans returns `{ scanId, status: "queued" }`
@@ -128,6 +128,14 @@ Added beyond the original file list, needed to satisfy the spec: `cookie-parser`
 - Vulnerabilities saved with correct severity + OWASP mapping
 - Score and grade stored on Scan document
 - Free tier capped at 3 scans/day/website
+
+**Verified end-to-end** with a real API server + worker process + a real Socket.io client connected over the network, scanning the live `example.com`: `POST /api/scans` → `queued` → worker picks it up → `scan:progress` fires 3 times (5% → 50% → 80%) → `scan:complete` fires with `{score: 63, grade: "C"}` → 6 vulnerabilities saved with correct OWASP mapping → re-scanning the same site produced **no duplicate vuln records** (still 6, with `lastSeenAt`/`lastCheckedScanId` updated on the existing docs) → a planted "fixed" vuln not redetected on re-scan correctly flipped to `verified` with `resolvedAt` set → a genuinely free-tier user's 4th scan of the day got `429 RATE_LIMITED` → a `deep` scan on an unverified domain got `403 DOMAIN_NOT_VERIFIED` → vulnerability status-transition validation confirmed (`verified` is unreachable via the API; only the worker sets it).
+
+**Two real-world tool/package issues found and fixed, not anticipated by docs/06:**
+1. **`mdn-http-observatory` doesn't exist on npm** — the real package is `@mdn/mdn-http-observatory`. Installing it pulled in `http-cookie-agent@7.0.4`, which `require()`s `agent-base@9.x` (a pure-ESM package) and crashes with `ERR_REQUIRE_ESM` on import. Fixed with an `overrides` entry in `server/package.json` pinning `agent-base` to `^6.0.2` for that dependency. Separately, the package's `scan()` function in this current version takes a `Site` instance (`Site.fromSiteString(hostname)`), not a raw hostname string as the docs snippet shows — passing a raw string silently produces `https://undefined` requests and fails with "the site seems to be down". Both are fixed in `observatoryRunner.js`.
+2. **SSLyze 6.x (the version `pip install sslyze` gives you today) removed the `--regular` CLent flag** the docs use. Replaced with `--mozilla_config=intermediate`, which queues an equivalent standard set of checks and was verified to produce the documented JSON shape. Also had to install `sslyze` via `pip3 install sslyze` and confirm `python3` was on PATH — neither was present in a fresh environment.
+
+Also added `API_INTERNAL_URL` env var (worker → API base URL for `/internal/emit`) — needed for the worker/API split to work but not listed in `docs/08_ENV_AND_SECRETS.md`.
 
 ---
 
@@ -259,3 +267,5 @@ _(move a phase block here when all tasks are checked)_
 
 - **macOS port 5000 conflict:** On this dev machine, macOS's built-in AirPlay Receiver (ControlCenter process) listens on port 5000 by default, which prevents the API server from binding there. Disable it via System Settings → General → AirDrop & Handoff → turn off "AirPlay Receiver", or run the server with a different `PORT` in your local `.env` during development. No code change was made since `PORT=5000` is correct per spec.
 - **Docker Desktop not installed:** This machine uses `colima` (Homebrew) instead of Docker Desktop as the Docker runtime. `colima start` must be run before `docker compose`/`docker-compose` commands will work. Use `docker-compose` (standalone binary) rather than `docker compose` (plugin) — the compose plugin isn't installed for the `docker` CLI here.
+- **SSLyze is a system Python dependency, not an npm package:** `pip3 install sslyze` must be run (with `python3` on PATH) before baseline scans can use it — it was not present on this machine and had to be installed. Also note SSLyze 6.x dropped the `--regular` CLI flag docs/06 references; `sslyzeRunner.js` now uses `--mozilla_config=intermediate` instead (see Phase 4 notes above for details).
+- **`@mdn/mdn-http-observatory` needed an `overrides` pin** (`agent-base` → `^6.0.2` under `http-cookie-agent`) in `server/package.json` to avoid an `ERR_REQUIRE_ESM` crash from a broken transitive dependency combo. If you ever remove/upgrade this package, re-check whether the override is still needed.

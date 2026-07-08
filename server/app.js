@@ -8,6 +8,9 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 import healthRouter from './routes/healthRouter.js';
 import authRouter from './routes/authRouter.js';
 import websiteRouter from './routes/websiteRouter.js';
+import scanRouter from './routes/scanRouter.js';
+import vulnerabilityRouter from './routes/vulnerabilityRouter.js';
+import internalRouter from './routes/internalRouter.js';
 
 const app = express();
 
@@ -52,11 +55,18 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json());
 app.use(cookieParser());
 
+// Mounted before apiLimiter's prefix match — /internal is server-to-server only
+// (worker → API), authenticated via x-internal-api-key, and must never be
+// throttled by the per-user/IP API rate limiter.
+app.use('/internal', internalRouter);
+
 app.use('/api/', apiLimiter);
 
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/websites', websiteRouter);
+app.use('/api/scans', scanRouter);
+app.use('/api/vulnerabilities', vulnerabilityRouter);
 
 app.use(notFound);
 app.use(errorHandler);

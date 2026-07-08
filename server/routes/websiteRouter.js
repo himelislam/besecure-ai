@@ -9,6 +9,7 @@ import {
   initiateVerification,
   checkVerification,
 } from '../controllers/websiteController.js';
+import { listScansForWebsite } from '../controllers/scanController.js';
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.patch('/:id', updateWebsite);
 router.delete('/:id', deleteWebsite);
 router.get('/:id/verify', initiateVerification);
 router.post('/:id/verify', checkVerification);
+router.get('/:websiteId/scans', listScansForWebsite);
 
 export default router;
