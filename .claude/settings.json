@@ -1,0 +1,25 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(npm install*)",
+            "Bash(npm run*)",
+            "Bash(node*)",
+            "Bash(mkdir*)",
+            "Bash(cp*)",
+            "Bash(mv*)",
+            "Bash(cat*)",
+            "Bash(ls*)",
+            "Bash(echo*)",
+            "Bash(docker compose*)",
+            "Bash(openssl rand*)",
+            "Bash(python3 -m sslyze*)",
+            "Bash(python3 --version*)"
+        ],
+        "deny": [
+            "Bash(rm -rf /*)",
+            "Bash(sudo rm*)",
+            "Bash(curl * | bash*)",
+            "Bash(wget * | bash*)"
+        ]
+    }
+}
