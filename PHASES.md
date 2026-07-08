@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 3 — Website Management
+## ▶ CURRENT PHASE: Phase 4 — Baseline Scanner (Core)
 
 ---
 
@@ -67,25 +67,27 @@ Added beyond the original file list, needed to satisfy the spec: `cookie-parser`
 
 ---
 
-## Phase 3 — Website Management
+## Phase 3 — Website Management ✅
 **Goal:** Users can add websites, verify domain ownership, manage their list.  
 **Depends on:** Phase 2
 
 ### Backend
-- [ ] `server/models/Website.js`
-- [ ] `server/schemas/websiteSchemas.js` — create, update, list schemas
-- [ ] `server/utils/urlNormalizer.js` — strip path/port, force https
-- [ ] `server/utils/tokenGenerator.js` — generate `sav-verify-{uuid}` token
-- [ ] `server/services/verification/dnsVerifier.js` — dns.promises.resolveTxt()
-- [ ] `server/services/verification/metaTagVerifier.js` — fetch + cheerio parse
-- [ ] `server/controllers/websiteController.js` — list, create, get, update, delete, initiateVerification, checkVerification
-- [ ] `server/routes/websiteRouter.js`
-- [ ] Wire website routes into `app.js`
+- [x] `server/models/Website.js`
+- [x] `server/schemas/websiteSchemas.js` — create, update, list schemas
+- [x] `server/utils/urlNormalizer.js` — strip path/port, force https
+- [x] `server/utils/tokenGenerator.js` — generate `sav-verify-{uuid}` token
+- [x] `server/services/verification/dnsVerifier.js` — dns.promises.resolveTxt()
+- [x] `server/services/verification/metaTagVerifier.js` — fetch + cheerio parse
+- [x] `server/controllers/websiteController.js` — list, create, get, update, delete, initiateVerification, checkVerification
+- [x] `server/routes/websiteRouter.js`
+- [x] Wire website routes into `app.js`
 
 ### Done When
 - POST /api/websites creates website with verificationToken
 - POST /api/websites/:id/verify checks DNS TXT or meta tag and sets verified=true
 - Free tier cannot add more than 3 websites
+
+**Verified end-to-end with curl + a local mock HTTP server:** create (URL normalization confirmed: path/query/case stripped, https forced), ownership isolation (another user's website → 404), duplicate-domain rejection (409, case/scheme/path-insensitive), get/update/soft-delete, `GET .../verify` (instructions) and `POST .../verify` (actual check). `verifyMetaTag` and `verifyDns` were also unit-verified directly (match / mismatch / unreachable-or-no-record cases) since exercising a real positive DNS TXT match requires owning a domain — confirmed via a monkey-patched `dns.promises.resolveTxt`. Free-tier limit confirmed to correctly cap at 3 for a genuinely free (non-trialing) user; note that trialing users are intentionally treated as premium-equivalent by `isPremium()` per the 14-day-full-access rule in `docs/01_PLATFORM_OVERVIEW.md` (F14), so the cap only bites once trial/premium status is gone — this is expected, not a bug.
 
 ---
 

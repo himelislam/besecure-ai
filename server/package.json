@@ -36,7 +36,9 @@
     "@anthropic-ai/sdk": "^0.24.3",
     "axios": "^1.7.2",
     "cookie-parser": "^1.4.6",
-    "resend": "^3.5.0"
+    "resend": "^3.5.0",
+    "node-fetch": "^3.3.2",
+    "cheerio": "^1.0.0"
   },
   "devDependencies": {}
 }

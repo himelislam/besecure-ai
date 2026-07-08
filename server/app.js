@@ -7,6 +7,7 @@ import { apiLimiter } from './middleware/rateLimiter.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import healthRouter from './routes/healthRouter.js';
 import authRouter from './routes/authRouter.js';
+import websiteRouter from './routes/websiteRouter.js';
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/api/', apiLimiter);
 
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/websites', websiteRouter);
 
 app.use(notFound);
 app.use(errorHandler);
