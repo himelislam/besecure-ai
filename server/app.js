@@ -12,6 +12,7 @@ import scanRouter from './routes/scanRouter.js';
 import vulnerabilityRouter from './routes/vulnerabilityRouter.js';
 import internalRouter from './routes/internalRouter.js';
 import dashboardRouter from './routes/dashboardRouter.js';
+import chatRouter from './routes/chatRouter.js';
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/api/websites', websiteRouter);
 app.use('/api/scans', scanRouter);
 app.use('/api/vulnerabilities', vulnerabilityRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/chat', chatRouter);
 
 app.use(notFound);
 app.use(errorHandler);

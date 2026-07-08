@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 6 — AI Security Assistant
+## ▶ CURRENT PHASE: Phase 7 — AI Roadmap Generator
 
 ---
 
@@ -159,20 +159,31 @@ Note: `GET /api/dashboard/summary` is mounted as `router.get('/summary', ...)` u
 
 ---
 
-## Phase 6 — AI Security Assistant
+## Phase 6 — AI Security Assistant ✅
 **Goal:** Context-aware chat with Claude API, rate-limited, scan context attachable.  
 **Depends on:** Phase 4
 
-- [ ] `server/models/ChatMessage.js`
-- [ ] `server/services/ai/promptBuilder.js` — builds system prompt with scan context + OWASP definitions
-- [ ] `server/services/ai/assistant.js` — Claude API call with prompt caching
-- [ ] `server/controllers/chatController.js` — sendMessage, getHistory, clearHistory
-- [ ] `server/routes/chatRouter.js`
-- [ ] Wire into `app.js`
+- [x] `server/models/ChatMessage.js`
+- [x] `server/services/ai/promptBuilder.js` — builds system prompt with scan context + OWASP definitions
+- [x] `server/services/ai/assistant.js` — Claude API call with prompt caching
+- [x] `server/controllers/chatController.js` — sendMessage, getHistory, clearHistory
+- [x] `server/routes/chatRouter.js`
+- [x] Wire into `app.js`
 
 ### Done When
 POST /api/chat with optional scanId → AI response with "AI-Assisted Guidance" label
 Rate limit: 20 messages/day free, 200/day premium
+
+**Verified everything except the live Claude response** (no real `ANTHROPIC_API_KEY` is available in this environment — `.env` only has the format-valid placeholder from Phase 1). Confirmed instead:
+- `promptBuilder.js` output directly: base prompt + OWASP Top 10 block always present; with a scan attached, the "Active Scan Context" block appears with correct score/grade/findings, top-15 truncation, and "...and N more findings" — verified with 18 seeded findings.
+- The `scanId` code path runs end-to-end without error for both a real owned scan and a nonexistent/foreign scanId (silently no-context, doesn't fail the request) — both reach the same point (the actual Anthropic call) before failing only on auth.
+- Daily rate limiting: seeded 20 "user"-role `ChatMessage` docs for a genuinely free-tier user, confirmed the 21st request is rejected with `429 RATE_LIMITED` **before** it ever calls the AI (fails inside `chatController.js`, not `assistant.js`) — and confirmed a failed AI call never gets persisted to `ChatMessage`, so outages can't silently burn a user's daily quota.
+- `getHistory` (oldest-first, last 30) and `clearHistory` (deletes all for the user) both confirmed against seeded data.
+- Content validation (max 2000 chars) confirmed rejecting oversized input with `400 VALIDATION_ERROR`.
+
+**Real bug found via direct SDK testing, fixed:** the Anthropic SDK's thrown error nests the actual API error type two levels deep — `err.error.error.type`, not `err.error.type`. The original code (matching a literal reading of docs/15's error-mapping snippet) read the wrong level, so it would always see the literal string `"error"` and silently fall through to the generic default message for every failure type, defeating the whole point of mapping `overloaded_error`/`rate_limit_error`/etc. to specific user-facing messages. Fixed the extraction path and confirmed (via a direct Anthropic SDK call with the placeholder key) that the real API returns `authentication_error` for a bad key — not `invalid_api_key` as docs/15 assumes — so that key was added to the mapping too, alongside the documented one.
+
+Note: per the explicit Phase 6 spec (not docs/04's `chatmessages` schema, which uses `sessionId`-scoped conversations with a 90-day TTL), this implementation has no `sessionId` — it's one continuous per-user chat log, and `getHistory`/`clearHistory` operate on the whole user history rather than a session. `DELETE /api/chat/history` (no `:sessionId` param) was used instead of docs/05's `DELETE /api/chat/session/:sessionId` for consistency with that design.
 
 ---
 
@@ -275,3 +286,4 @@ _(move a phase block here when all tasks are checked)_
 - **Docker Desktop not installed:** This machine uses `colima` (Homebrew) instead of Docker Desktop as the Docker runtime. `colima start` must be run before `docker compose`/`docker-compose` commands will work. Use `docker-compose` (standalone binary) rather than `docker compose` (plugin) — the compose plugin isn't installed for the `docker` CLI here.
 - **SSLyze is a system Python dependency, not an npm package:** `pip3 install sslyze` must be run (with `python3` on PATH) before baseline scans can use it — it was not present on this machine and had to be installed. Also note SSLyze 6.x dropped the `--regular` CLI flag docs/06 references; `sslyzeRunner.js` now uses `--mozilla_config=intermediate` instead (see Phase 4 notes above for details).
 - **`@mdn/mdn-http-observatory` needed an `overrides` pin** (`agent-base` → `^6.0.2` under `http-cookie-agent`) in `server/package.json` to avoid an `ERR_REQUIRE_ESM` crash from a broken transitive dependency combo. If you ever remove/upgrade this package, re-check whether the override is still needed.
+- **No real `ANTHROPIC_API_KEY` is configured** — `.env` only has the Phase 1 placeholder (`sk-ant-devplaceholder...`, format-valid so `validateEnv()` passes, but rejected by the real API). Everything in Phase 6 was verified except an actual Claude response (see Phase 6 notes for what was verified instead). Drop a real key into `server/.env` to get live AI replies from `/api/chat/message`.
