@@ -34,6 +34,7 @@ const websiteSchema = new mongoose.Schema(
 websiteSchema.index({ userId: 1 });
 websiteSchema.index({ userId: 1, domain: 1 }, { unique: true });
 websiteSchema.index({ userId: 1, isDeleted: 1 });
+websiteSchema.index({ verificationToken: 1 });
 
 websiteSchema.methods.getVerificationInstructions = function getVerificationInstructions() {
   return {

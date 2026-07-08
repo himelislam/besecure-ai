@@ -49,6 +49,7 @@ const scanSchema = new mongoose.Schema(
 
 scanSchema.index({ websiteId: 1, createdAt: -1 });
 scanSchema.index({ userId: 1, createdAt: -1 });
+scanSchema.index({ status: 1 });
 
 const Scan = mongoose.model('Scan', scanSchema);
 export default Scan;

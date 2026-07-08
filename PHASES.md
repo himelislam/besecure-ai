@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 5 — Dashboard & Analytics
+## ▶ CURRENT PHASE: Phase 6 — AI Security Assistant
 
 ---
 
@@ -139,17 +139,23 @@ Also added `API_INTERNAL_URL` env var (worker → API base URL for `/internal/em
 
 ---
 
-## Phase 5 — Dashboard & Analytics
+## Phase 5 — Dashboard & Analytics ✅
 **Goal:** Dashboard API returns all chart data in one call.  
 **Depends on:** Phase 4
 
-- [ ] `server/controllers/dashboardController.js` — getSummary (parallel queries with Promise.all)
-- [ ] `server/routes/dashboardRouter.js`
-- [ ] Wire into `app.js`
-- [ ] Verify all MongoDB indexes from `docs/04_DATABASE_SCHEMA.md` exist
+- [x] `server/controllers/dashboardController.js` — getSummary (parallel queries with Promise.all)
+- [x] `server/routes/dashboardRouter.js`
+- [x] Wire into `app.js`
+- [x] Verify all MongoDB indexes from `docs/04_DATABASE_SCHEMA.md` exist
 
 ### Done When
 GET /api/dashboard/summary returns: totalWebsites, totalScans, openVulnerabilities, averageScore, scoreHistory, recentScans, riskDistribution
+
+**Verified end-to-end** with seeded test data (3 websites, 48 completed scans, 27 open vulnerabilities): every field returned correct values (`averageScore: 90` matching the average of each website's latest score 95/90/85; `riskDistribution` summing to `openVulnerabilities`; `scoreHistory` correctly ordered oldest→newest per website for line charts; `websitesSummary`/`recentScans` correctly populated). Response time was **~55ms** (well under the 500ms budget) with seeded data, and **~9ms** for a brand-new user with zero data — confirmed the empty-state case doesn't crash the aggregations (`averageScore` correctly comes back `null`, not `NaN`).
+
+**Index audit found two gaps** in the existing models vs. `docs/04_DATABASE_SCHEMA.md` and fixed them: `Website` was missing a standalone `verificationToken` index, and `Scan` was missing a standalone `{status: 1}` index (used for finding queued/running scans). Both added; `db.<collection>.getIndexes()` confirmed all docs/04-specified indexes now exist on disk for `users`, `websites`, `scans`, and `vulnerabilities`.
+
+Note: `GET /api/dashboard/summary` is mounted as `router.get('/summary', ...)` under `app.use('/api/dashboard', dashboardRouter)` — the phase prompt said "GET / → getSummary" but the literal Done-When path (and docs/05) is `/api/dashboard/summary`, so the route was named to match the tested/documented URL.
 
 ---
 
