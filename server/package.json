@@ -34,7 +34,9 @@
     "dotenv": "^16.4.5",
     "node-cron": "^3.0.3",
     "@anthropic-ai/sdk": "^0.24.3",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "cookie-parser": "^1.4.6",
+    "resend": "^3.5.0"
   },
   "devDependencies": {}
 }

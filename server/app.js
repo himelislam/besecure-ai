@@ -2,9 +2,11 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 import healthRouter from './routes/healthRouter.js';
+import authRouter from './routes/authRouter.js';
 
 const app = express();
 
@@ -47,10 +49,12 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(express.json());
+app.use(cookieParser());
 
 app.use('/api/', apiLimiter);
 
 app.use('/api', healthRouter);
+app.use('/api/auth', authRouter);
 
 app.use(notFound);
 app.use(errorHandler);

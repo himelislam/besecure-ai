@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 2 — Authentication
+## ▶ CURRENT PHASE: Phase 3 — Website Management
 
 ---
 
@@ -37,20 +37,24 @@
 
 ---
 
-## Phase 2 — Authentication
+## Phase 2 — Authentication ✅
 **Goal:** register → verify email → login → refresh → logout → reset password, all working.  
 **Depends on:** Phase 1
 
 ### Backend
-- [ ] `server/models/User.js` — full schema with subscription fields
-- [ ] `server/schemas/authSchemas.js` — Zod schemas for all auth endpoints
-- [ ] `server/services/email/emailService.js` — Resend/Nodemailer wrappers
-- [ ] `server/services/email/templates/verificationEmail.js`
-- [ ] `server/services/email/templates/passwordResetEmail.js`
-- [ ] `server/middleware/auth.js` — authenticateToken, authenticateInternal, checkSubscription, protect
-- [ ] `server/controllers/authController.js` — register, login, logout, refresh, verifyEmail, forgotPassword, resetPassword, getMe, updateMe, changePassword
-- [ ] `server/routes/authRouter.js`
-- [ ] Wire auth routes into `app.js`
+- [x] `server/models/User.js` — full schema with subscription fields
+- [x] `server/schemas/authSchemas.js` — Zod schemas for all auth endpoints
+- [x] `server/services/email/emailService.js` — Resend/Nodemailer wrappers
+- [x] `server/services/email/templates/verificationEmail.js`
+- [x] `server/services/email/templates/passwordResetEmail.js`
+- [x] `server/middleware/auth.js` — authenticateToken, authenticateInternal, checkSubscription, protect
+- [x] `server/controllers/authController.js` — register, login, logout, refresh, verifyEmail, forgotPassword, resetPassword, getMe, updateMe, changePassword
+- [x] `server/routes/authRouter.js`
+- [x] Wire auth routes into `app.js`
+
+**Verified end-to-end with curl** (see Blockers section for the local port note): register → DB-verified token → verify-email (confirmed one-time use) → login (identical "Invalid credentials" error for wrong password and unverified email) → refresh → PATCH /me → change-password (confirmed old refresh token + old password rejected after `tokenVersion` bump) → logout → forgot-password (identical generic response for existing/non-existent email) → reset-password (confirmed one-time use, confirmed login with new password).
+
+Added beyond the original file list, needed to satisfy the spec: `cookie-parser` (to read the httpOnly refresh cookie in `refreshToken`) and `resend` (Resend SDK path in `emailService.js`) as new `server/package.json` dependencies; `tokenVersion` field on `User` (select:false) as the mechanism for "invalidate all refresh tokens" on password change/reset.
 
 ### Done When
 - POST /api/auth/register → user created, verification email sent
