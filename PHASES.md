@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 8 — PDF Report Generation
+## ▶ CURRENT PHASE: Phase 9 — Deep Scanner
 
 ---
 
@@ -206,22 +206,31 @@ POST /api/roadmaps/:scanId generates and returns a structured roadmap with week-
 
 ---
 
-## Phase 8 — PDF Report Generation
+## Phase 8 — PDF Report Generation ✅
 **Goal:** Puppeteer generates PDF with AI executive summary, stored in Cloudinary.  
 **Depends on:** Phase 7
 
-- [ ] `server/models/Report.js`
-- [ ] `server/services/pdf/reportTemplate.js` — HTML template (inline CSS only for Puppeteer)
-- [ ] `server/services/pdf/reportGenerator.js` — Puppeteer launch → PDF buffer → Cloudinary upload
-- [ ] `server/services/queue/reportQueue.js` — BullMQ queue for PDF jobs
-- [ ] `server/services/queue/reportWorker.js` — report worker processor
-- [ ] `server/controllers/reportController.js` — generate, get, listReports
-- [ ] `server/routes/reportRouter.js`
-- [ ] Add internal report template route: GET /internal/report-template/:scanId
-- [ ] Wire into `app.js` + add reportWorker to `workers/index.js`
+- [x] `server/models/Report.js`
+- [x] `server/services/pdf/reportTemplate.js` — HTML template (inline CSS only for Puppeteer)
+- [x] `server/services/pdf/reportGenerator.js` — Puppeteer launch → PDF buffer → Cloudinary upload
+- [x] `server/services/queue/reportQueue.js` — BullMQ queue for PDF jobs
+- [x] `server/services/queue/reportWorker.js` — report worker processor
+- [x] `server/controllers/reportController.js` — generate, get, listReports
+- [x] `server/routes/reportRouter.js`
+- [ ] ~~Add internal report template route: GET /internal/report-template/:scanId~~ — not built. The explicit Phase 8 build spec (matching the actual prompt used) has Puppeteer call `page.setContent(buildReportHtml(reportData))` directly in-process rather than `page.goto()`-ing a hidden internal route, so there's no HTTP round-trip to render the template and this route isn't needed. `docs/03_ARCHITECTURE.md`'s flow describes the goto-URL approach; the literal build steps override it, same as prior phases where the two disagreed.
+- [x] Wire into `app.js` + add reportWorker to `workers/index.js`
 
 ### Done When
 POST /api/reports/:scanId → generates PDF → uploads to Cloudinary → returns download URL
+
+**This phase was far more testable than Phases 6-7** since PDF generation is 100% local (Puppeteer + bundled Chromium, no external API). Verified genuinely end-to-end:
+- `buildReportHtml` produces well-formed HTML with all 9 required sections
+- `generatePDF` actually launches Puppeteer and produces a real, valid PDF (`%PDF-1.4` magic bytes, 8 pages for the test fixture) — rendered pages to PNG via `pdftoppm` and visually confirmed: cover page with score circle/grade badge, severity-color-coded vulnerability table and finding cards (critical=red, high=orange, medium=yellow, low=blue, info=gray), and the AI recommendations/roadmap section all render cleanly
+- Full pipeline via the real API + worker + a real Socket.io client: `POST /api/reports/:scanId` → `Report` created (`generating`) → worker fetches scan/website/vulnerabilities/roadmap → executive summary generation → PDF built → Cloudinary upload attempted → **only the Cloudinary upload step fails** (placeholder credentials, `"Unknown API key devplaceholder"`), confirming everything up to that point — including the AI executive summary call — worked correctly. `Report.status` correctly lands on `"failed"` with the real error message, and a real `report:failed` Socket.io event fires (would be `report:complete` with a real Cloudinary account)
+- Free-tier "1 report per scan": confirmed a prior *failed* attempt doesn't block a retry, but an active (`generating`) report correctly returns `403 PLAN_LIMIT_REACHED`; confirmed a premium/trialing user bypasses this
+- Ownership isolation confirmed on `generateReport` and `getReport`
+
+**Design choice not explicitly specified, made for testability and resilience:** `executiveSummaryGenerator.js` falls back to a deterministic summary string if the Claude call fails, rather than failing the whole report job — a transient AI outage shouldn't block PDF generation entirely (the PDF template still needs *some* executive summary text). This is the same reasoning used elsewhere in this build for non-fatal tool/service failures, and it's what let this phase's Cloudinary-only-failure be cleanly isolated and verified.
 
 ---
 
@@ -291,3 +300,4 @@ _(move a phase block here when all tasks are checked)_
 - **SSLyze is a system Python dependency, not an npm package:** `pip3 install sslyze` must be run (with `python3` on PATH) before baseline scans can use it — it was not present on this machine and had to be installed. Also note SSLyze 6.x dropped the `--regular` CLI flag docs/06 references; `sslyzeRunner.js` now uses `--mozilla_config=intermediate` instead (see Phase 4 notes above for details).
 - **`@mdn/mdn-http-observatory` needed an `overrides` pin** (`agent-base` → `^6.0.2` under `http-cookie-agent`) in `server/package.json` to avoid an `ERR_REQUIRE_ESM` crash from a broken transitive dependency combo. If you ever remove/upgrade this package, re-check whether the override is still needed.
 - **No real `ANTHROPIC_API_KEY` is configured** — `.env` only has the Phase 1 placeholder (`sk-ant-devplaceholder...`, format-valid so `validateEnv()` passes, but rejected by the real API). Everything in Phase 6 was verified except an actual Claude response (see Phase 6 notes for what was verified instead). Drop a real key into `server/.env` to get live AI replies from `/api/chat/message`.
+- **No real Cloudinary credentials either** — same placeholder situation (`CLOUDINARY_CLOUD_NAME=dev-placeholder`, etc.). This is why Phase 8's PDF reports land on `status: "failed"` with `"Unknown API key devplaceholder"` — everything before the upload (executive summary, PDF generation) works correctly; only the actual Cloudinary upload needs real credentials. Also needed `pdftoppm` (`brew install poppler`) to visually verify the rendered PDF pages during Phase 8 — not a project dependency, just a one-off verification tool.

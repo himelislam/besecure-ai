@@ -5,21 +5,26 @@ validateEnv();
 
 const { connectDB, disconnectDB } = await import('../config/db.js');
 const { getRedisClient } = await import('../config/redis.js');
+const { initCloudinary } = await import('../config/cloudinary.js');
 const { createScanWorker } = await import('../services/queue/scanWorker.js');
+const { createReportWorker } = await import('../services/queue/reportWorker.js');
 const { logger } = await import('../utils/logger.js');
 
 await connectDB();
 getRedisClient();
+initCloudinary(); // needed by reportWorker's Cloudinary upload step
 
-const worker = createScanWorker();
+const scanWorker = createScanWorker();
+const reportWorker = createReportWorker();
 logger.info('Scan worker started');
+logger.info('Report worker started');
 
 async function shutdown(signal) {
-  logger.info(`${signal} received — shutting down scan worker`);
+  logger.info(`${signal} received — shutting down workers`);
   try {
-    await worker.close();
+    await Promise.all([scanWorker.close(), reportWorker.close()]);
     await disconnectDB();
-    logger.info('Scan worker shutdown complete');
+    logger.info('Worker shutdown complete');
     process.exit(0);
   } catch (err) {
     logger.error({ message: 'Error during worker shutdown', error: err.message });

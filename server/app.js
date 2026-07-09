@@ -14,6 +14,7 @@ import internalRouter from './routes/internalRouter.js';
 import dashboardRouter from './routes/dashboardRouter.js';
 import chatRouter from './routes/chatRouter.js';
 import roadmapRouter from './routes/roadmapRouter.js';
+import reportRouter from './routes/reportRouter.js';
 
 const app = express();
 
@@ -73,6 +74,7 @@ app.use('/api/vulnerabilities', vulnerabilityRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/roadmaps', roadmapRouter);
+app.use('/api/reports', reportRouter);
 
 app.use(notFound);
 app.use(errorHandler);
