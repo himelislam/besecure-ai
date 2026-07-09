@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 7 — AI Roadmap Generator
+## ▶ CURRENT PHASE: Phase 8 — PDF Report Generation
 
 ---
 
@@ -187,18 +187,22 @@ Note: per the explicit Phase 6 spec (not docs/04's `chatmessages` schema, which 
 
 ---
 
-## Phase 7 — AI Roadmap Generator
+## Phase 7 — AI Roadmap Generator ✅
 **Goal:** Claude generates a week-by-week remediation plan from scan findings, stored in DB.  
 **Depends on:** Phase 6
 
-- [ ] `server/models/Roadmap.js`
-- [ ] `server/services/ai/roadmapGenerator.js` — Claude API → parse JSON roadmap
-- [ ] `server/controllers/roadmapController.js` — generate, get, updateStep
-- [ ] `server/routes/roadmapRouter.js`
-- [ ] Wire into `app.js`
+- [x] `server/models/Roadmap.js`
+- [x] `server/services/ai/roadmapGenerator.js` — Claude API → parse JSON roadmap
+- [x] `server/controllers/roadmapController.js` — generate, get, updateStep
+- [x] `server/routes/roadmapRouter.js`
+- [x] Wire into `app.js`
 
 ### Done When
 POST /api/roadmaps/:scanId generates and returns a structured roadmap with week-by-week steps
+
+**Real bug found and fixed before any API testing:** `parseRoadmapResponse`'s fence-stripping ran `.trim()` *after* the `^`/`$`-anchored regex replacements instead of before. Any Claude response with leading/trailing whitespace around a ` ```json ` fence (very plausible) would silently fail to strip it, since the anchors wouldn't match past the whitespace, and `JSON.parse` would then throw on the raw fenced text. Caught by testing the exact stripping logic against fenced/whitespace-padded inputs before wiring up the controller — fixed by moving `.trim()` to run first.
+
+**Verified end-to-end without a real Claude response** (same `ANTHROPIC_API_KEY` limitation as Phase 6): confirmed the full failure path — `POST /api/roadmaps/:scanId` creates a `Roadmap` doc, the AI call fails cleanly with `503 AI_UNAVAILABLE`, and the doc is correctly persisted as `status: "failed"` with the error message (not left stuck as `"generating"`). Confirmed retrying a failed roadmap regenerates in place (same document, unique `scanId` index holds — no duplicate created), while re-requesting an already-`"completed"` roadmap short-circuits and returns the existing one without calling the AI again. Seeded a realistic completed roadmap **through the actual Mongoose model** (not raw `mongosh`, which — instructive gotcha — doesn't persist subdocument `_id`s the way Mongoose does, so a raw-inserted `steps` array gets a *new, unstable* `_id` regenerated on every hydration; going through `Roadmap.create()` gives each step a real, stable `_id` as production code would) and confirmed `PATCH /api/roadmaps/:roadmapId/steps/:stepId` correctly toggles `isDone` both directions with `completedAt` set/cleared accordingly. Ownership isolation confirmed on both `getRoadmap` and `updateStep` (404 for another user's scan/roadmap).
 
 ---
 
