@@ -15,6 +15,8 @@ import dashboardRouter from './routes/dashboardRouter.js';
 import chatRouter from './routes/chatRouter.js';
 import roadmapRouter from './routes/roadmapRouter.js';
 import reportRouter from './routes/reportRouter.js';
+import billingRouter from './routes/billingRouter.js';
+import webhookRouter from './routes/webhookRouter.js';
 
 const app = express();
 
@@ -56,6 +58,10 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+// CRITICAL: mounted before express.json() — Stripe signature verification needs the
+// raw request body, and once express.json() has parsed it there's no getting it back.
+app.use('/webhooks/stripe', webhookRouter);
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -75,6 +81,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/roadmaps', roadmapRouter);
 app.use('/api/reports', reportRouter);
+app.use('/api/billing', billingRouter);
 
 app.use(notFound);
 app.use(errorHandler);

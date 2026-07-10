@@ -11,7 +11,9 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "worker": "node --watch workers/index.js",
-    "worker:start": "node workers/index.js"
+    "worker:start": "node workers/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -41,7 +43,10 @@
     "cheerio": "^1.0.0",
     "@mdn/mdn-http-observatory": "^1.6.2"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "vitest": "^2.1.9",
+    "supertest": "^7.0.0"
+  },
   "overrides": {
     "http-cookie-agent": {
       "agent-base": "^6.0.2"

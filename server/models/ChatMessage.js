@@ -26,6 +26,8 @@ const chatMessageSchema = new mongoose.Schema(
 
 chatMessageSchema.index({ userId: 1, createdAt: -1 });
 chatMessageSchema.index({ userId: 1, createdAt: 1 });
+// Auto-cleanup per docs/04_DATABASE_SCHEMA.md: chat history isn't retained forever.
+chatMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7776000 }); // 90 days
 
-const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
+const ChatMessage = mongoose.models.ChatMessage || mongoose.model('ChatMessage', chatMessageSchema);
 export default ChatMessage;

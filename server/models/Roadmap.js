@@ -43,5 +43,5 @@ const roadmapSchema = new mongoose.Schema(
 roadmapSchema.index({ scanId: 1 }, { unique: true });
 roadmapSchema.index({ userId: 1, createdAt: -1 });
 
-const Roadmap = mongoose.model('Roadmap', roadmapSchema);
+const Roadmap = mongoose.models.Roadmap || mongoose.model('Roadmap', roadmapSchema);
 export default Roadmap;

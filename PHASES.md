@@ -5,7 +5,7 @@
 
 ---
 
-## ▶ CURRENT PHASE: Phase 9 — Deep Scanner
+## ▶ CURRENT PHASE: Phase 11 — Security Hardening & Polish
 
 ---
 
@@ -234,56 +234,104 @@ POST /api/reports/:scanId → generates PDF → uploads to Cloudinary → return
 
 ---
 
-## Phase 9 — Deep Scanner
+## Phase 9 — Deep Scanner ✅
 **Goal:** ZAP + Nuclei + testssl.sh for verified premium domains.  
 **Depends on:** Phase 4
 
-- [ ] `server/services/scanner/tools/zapRunner.js` — HTTP calls to ZAP REST API
-- [ ] `server/services/scanner/tools/nucleiRunner.js` — execFile subprocess, JSONL output
-- [ ] `server/services/scanner/tools/testsslRunner.js` — execFile subprocess, JSON output
-- [ ] Extend `normalizer.js` with ZAP, Nuclei, testssl mappings
-- [ ] Extend `scanWorker.js` to run deep tools when `type === 'deep'`
-- [ ] Gate deep scan in `scanController.createScan`: verified + premium check
-- [ ] Add ZAP service to `docker/docker-compose.dev.yml`
-- [ ] `docker/zap/zap-baseline.yaml` — ZAP Automation Framework config
+- [x] `server/services/scanner/tools/zapRunner.js` — HTTP calls to ZAP REST API
+- [x] `server/services/scanner/tools/nucleiRunner.js` — execFile subprocess, JSONL output
+- [x] `server/services/scanner/tools/testsslRunner.js` — execFile subprocess, JSON output
+- [x] Extend `normalizer.js` with ZAP, Nuclei, testssl mappings
+- [x] Extend `scanWorker.js` to run deep tools when `type === 'deep'`
+- [x] Gate deep scan in `scanController.createScan`: verified + premium check
+- [x] Add ZAP service to `docker/docker-compose.dev.yml`
+- [x] `docker/zap/zap-baseline.yaml` — ZAP Automation Framework config
 
 ### Done When
 Premium + verified domain users can run deep scans that include ZAP/Nuclei/testssl findings
 
+**Real bugs found and fixed via testing (all against a local-only test target — see Blockers below for why):**
+1. **Nuclei 3.x renamed `-json` → `-jsonl`.** The old flag doesn't exist anymore (`flag provided but not defined: -json`); fixed in `nucleiRunner.js`.
+2. **`sslyzeRunner.js` and `testsslRunner.js` both used `new URL(targetUrl).hostname`, silently dropping a non-default port.** Invisible in Phase 4 (always tested against port-443 domains), but on our port-4443 test target both tools quietly scanned the wrong port (443) instead — SSLyze even reported `status: "success"` while producing zero findings, because `scan_result` came back null from a connectivity failure that `normalizeSSLyze` correctly (but silently) treats as "nothing to report" rather than a hard error. Fixed by using `.host` instead of `.hostname` in both runners.
+3. **`SSLYZE_PYTHON=python3` resolves via PATH, which is fragile.** A shell/process context change (a different terminal, a different conda env active) silently pointed `python3` at an interpreter with no `sslyze` module installed, and the failure only surfaced as "no findings" rather than a clear error — same symptom as bug #2, different root cause, confirmed by re-running with full tracebacks. `.env` now uses an absolute path to the interpreter `sslyze` was actually installed into; `.env.example` documents why.
+4. **testssl.sh's raw JSON dumps *everything* it checks, not just problems.** Filtering only `OK/WARN/DEBUG` (the literal spec) left 212 "findings" per scan, the overwhelming majority being diagnostic noise (cipher lists, cert fingerprints, client-simulation matrices, scoring breakdowns) — not actionable vulnerabilities. Also excluded `INFO` severity for testssl specifically (unlike ZAP/Nuclei, where `INFO` alerts are meaningful discrete items) — real testssl issues always come back LOW or above. Cut a real scan's findings from 212 down to 12 unique, all genuinely actionable (cert trust/expiry/revocation, weak ciphers, missing HSTS, etc.).
+5. **Nuclei's "missing security headers" template reports one match per missing header, all sharing the same `template-id` and `matched-at` URL.** The literal `toolFindingId` spec (`template-id` + hash of URL) collapsed 10 distinct missing-header findings into a single stored vulnerability. Fixed by incorporating `matcher-name` (present on these multi-match templates) into both the `toolFindingId` and the finding title.
+6. **ZAP's Docker port mapping isn't transparent to ZAP itself.** With `ports: ["8090:8080"]`, ZAP (listening on 8080 inside its container) compares an incoming request's `Host` header port against its own internal port to decide whether to serve its API or act as a forwarding proxy. Since our external `ZAP_API_URL` uses port 8090, every unmodified request got misread as "proxy this to host:8090" and failed with connection-refused. Fixed by having `zapRunner.js` always send `Host: <hostname>:8080` (the container-internal port, via a new `ZAP_INTERNAL_PORT` env var) regardless of the external URL. Separately, `api.disablekey=true` alone wasn't sufficient either — ZAP also allowlists permitted source addresses and rejected the Docker bridge gateway IP by default; added `-config api.addrs.addr.name=.* -config api.addrs.addr.regex=true` to the compose command.
+7. **A transient "socket hang up" during ZAP's status-polling loop crashed an otherwise-healthy scan.** Added a retry-and-continue around each poll attempt (bounded by the existing 5-minute deadline) rather than letting one flaky connection kill the whole scan.
+
+**Verified thoroughly, in two tiers:**
+- **Each of ZAP, Nuclei, and testssl.sh verified individually against a local test target**, going all the way through to their respective `normalize*` functions with the *real* captured tool output (not synthetic fixtures) — confirmed correct severities, OWASP mappings, and unique `toolFindingId`s in every case.
+- **Full orchestration verified through the real API → BullMQ → worker → MongoDB → Socket.io pipeline**: a premium, domain-verified user's `POST /api/scans` (`type: "deep"`) correctly progressed through all expected stages (`headers-checked` → `ssl-checked` → `active-scan-checked` → `cve-checked` → `complete`), and findings from **two different tools (SSLyze + testssl.sh) landed together** in the vulnerability list in one scan — confirming the worker's aggregation, dedup, and scoring logic correctly handle multiple simultaneous tool outputs, which was the main integration risk in this phase. Both 403 gates (`DOMAIN_NOT_VERIFIED` for an unverified domain, `PLAN_LIMIT_REACHED` for a free-tier user) confirmed directly against the running API.
+- **ZAP and Nuclei did not succeed in that same full-orchestration run** — not because of a code bug, but because of two environment-specific gaps addressed in Blockers below (Docker container networking for ZAP; a sandbox restriction on Nuclei specifically when spawned from within a long-running Node process rather than a direct interactive shell command). Both were already proven correct in their individual verification tier above.
+
 ---
 
-## Phase 10 — Stripe Billing
+## Phase 10 — Stripe Billing ✅
 **Goal:** Full Stripe subscription flow — checkout → webhook → tier update.  
 **Depends on:** Phase 2 only (can build any time after Phase 2)
 
-- [ ] `server/services/billing/stripeService.js` — createCustomer, createCheckoutSession, createPortalSession
-- [ ] `server/controllers/billingController.js` — createCheckout, createPortal, getSubscription
-- [ ] `server/routes/billingRouter.js`
-- [ ] `server/routes/webhookRouter.js` — POST /webhooks/stripe (raw body + signature verify)
+- [x] `server/services/billing/stripeService.js` — createCustomer, createCheckoutSession, createPortalSession
+- [x] `server/controllers/billingController.js` — createCheckout, createPortal, getSubscription
+- [x] `server/routes/billingRouter.js`
+- [x] `server/routes/webhookRouter.js` — POST /webhooks/stripe (raw body + signature verify)
   - Handle: `customer.subscription.created`, `updated`, `deleted`, `invoice.payment_failed`
-- [ ] Wire billingRouter into `app.js`
-- [ ] Wire webhookRouter BEFORE `express.json()` in `app.js` (raw body required)
-- [ ] Test with Stripe CLI: `stripe listen --forward-to localhost:5000/webhooks/stripe`
+- [x] Wire billingRouter into `app.js`
+- [x] Wire webhookRouter BEFORE `express.json()` in `app.js` (raw body required)
+- [x] Test with Stripe CLI equivalent (see notes below — no real Stripe account in this environment)
 
 ### Done When
 Full payment flow works. Webhooks update `user.subscription`. Free vs premium limits enforced everywhere.
 
+**No real Stripe account/API key exists in this environment** (same placeholder situation as Anthropic/Cloudinary in earlier phases — `STRIPE_SECRET_KEY=sk_test_devplaceholder...`), so the literal `stripe listen --forward-to ...` / `stripe trigger ...` workflow against Stripe's real servers wasn't possible. Installed the Stripe CLI directly from GitHub releases (Homebrew's version required an Xcode Command Line Tools update this machine doesn't have) purely to confirm it exists, but didn't rely on it for testing. Instead, verified **the exact same code path** a different way:
+
+- **Signature verification + event processing verified with genuinely-signed payloads**, constructed locally via the `stripe` npm SDK's own `stripe.webhooks.generateTestHeaderString()` helper (HMAC-signed with the real `STRIPE_WEBHOOK_SECRET` from `.env` — this is the same signing scheme Stripe's real webhook delivery uses, so this is not a mocked/stubbed test). Confirmed all four handled event types correctly update `user.subscription` in MongoDB: `customer.subscription.created` → `status: "active"`, `plan: "premium"`, `stripeSubscriptionId` and `currentPeriodEnd` set; `customer.subscription.updated` → status/period synced; `customer.subscription.deleted` → `status: "canceled"`, `plan: "free"`; `invoice.payment_failed` → `status: "past_due"`.
+- Confirmed a **tampered/bad signature is rejected with 400**, and an **unhandled event type still returns `200 { received: true }`** (Stripe's hard requirement).
+- Confirmed `express.json()` still works normally for every other route (e.g. login) — the raw-body parser scoped to `/webhooks/stripe` doesn't leak out and break global JSON parsing.
+- `createCheckout`/`createPortal` confirmed to fail gracefully (401 from the real Stripe API, not a crash) against the placeholder key — same non-fatal-external-dependency pattern as Phases 6-8. `getSubscription` confirmed to return only `{status, plan, trialEnd, currentPeriodEnd}` — no `stripeCustomerId`/`stripeSubscriptionId` ever leaked, per spec.
+- **Free vs premium enforcement re-verified end-to-end after wiring billing in**: a free-tier user is capped at 3 websites (403 `PLAN_LIMIT_REACHED` on the 4th), and flipping that same user to `active`/`premium` via a simulated webhook immediately unblocks the 4th — confirming the webhook-driven tier change takes effect immediately elsewhere in the app, not just in isolation.
+
 ---
 
-## Phase 11 — Security Hardening & Polish
+## Phase 11 — Security Hardening & Polish ✅
 **Goal:** Production-ready. Every endpoint audited.  
 **Depends on:** All phases
 
-- [ ] Audit: every endpoint has auth middleware ✓, Zod validation ✓, ownership check ✓, rate limit ✓
-- [ ] Audit: no endpoint leaks password / token / internal fields
-- [ ] Audit: httpOnly cookie on refresh token
-- [ ] Audit: CORS not wildcard
-- [ ] Audit: helmet config matches `docs/09_SECURITY_RULES.md`
-- [ ] Verify all MongoDB indexes exist (run `db.collection.getIndexes()`)
-- [ ] BullMQ worker concurrency set to 2
-- [ ] Score engine unit tests
-- [ ] Ownership check security tests
-- [ ] README.md with setup instructions
+- [x] Audit: every endpoint has auth middleware ✓, Zod validation ✓, ownership check ✓, rate limit ✓
+- [x] Audit: no endpoint leaks password / token / internal fields
+- [x] Audit: httpOnly cookie on refresh token
+- [x] Audit: CORS not wildcard
+- [x] Audit: helmet config matches `docs/09_SECURITY_RULES.md`
+- [x] Verify all MongoDB indexes exist (run `db.collection.getIndexes()`)
+- [x] BullMQ worker concurrency set to 2
+- [x] Score engine unit tests
+- [x] Ownership check security tests
+- [x] README.md with setup instructions
+
+### Done When
+Full 10-point audit performed against every route/controller file, three genuine gaps found and fixed, all fixes verified live (not just read — curled/queried against the running server and DB). Performance checklist confirmed already correct. 24 automated tests added and passing. `README.md` written.
+
+### What the audit found and fixed
+
+1. **`internalRouter.js` had no Zod validation on `POST /internal/emit`** — every other body-accepting route validates with Zod; this one didn't. Added an `emitSchema` (`userId`, `event`, `data`) and `.parse()`. Verified: valid body → 200; missing `event` → 400 `VALIDATION_ERROR`; wrong/missing `x-internal-api-key` → 403 `FORBIDDEN`.
+2. **`webhookRouter.js` and `internalRouter.js` were both completely unthrottled** — they're mounted before `app.use('/api/', apiLimiter)` at different path prefixes, so neither ever passed through the global rate limiter. Added `apiLimiter` directly on both routes as a request-flooding backstop (signature verification / internal API key remain the real auth control). Verified the Stripe webhook still processes genuinely-signed payloads correctly with the limiter attached.
+3. **`ChatMessage` had no TTL index** — every other time-series-ish collection had a documented retention policy, chat history didn't. Added `{ createdAt: 1 }, { expireAfterSeconds: 7776000 }` (90 days) per `docs/04_DATABASE_SCHEMA.md`. Verified live via `db.chatmessages.getIndexes()`.
+
+Everything else audited clean on the first pass: `protect` middleware coverage, ownership checks (`findOne` with `userId`), refresh cookie config (`httpOnly`, `secure` gated on `NODE_ENV`, `sameSite: 'strict'`, `path: '/api/auth/refresh'`), CORS (`origin: process.env.CLIENT_URL`, no wildcard), helmet config (exact field-for-field match to spec), all other model indexes (cross-checked code vs. live `db.<collection>.getIndexes()` for all 8 collections), and scanner subprocess calls (`execFile`/`execFileAsync` only — zero uses of `exec()` with string interpolation anywhere in `services/scanner/tools/`).
+
+Performance checklist — all three already correct, no changes needed: BullMQ `scanWorker`/`reportWorker` concurrency was already `2`; `dashboardController` was already using `Promise.all` for its parallel queries; the only `.populate()` call in the codebase (`dashboardController`, scoped to `nickname domain` only) has no N+1 issue.
+
+### Testing infrastructure added
+
+- `vitest` + `supertest` as devDependencies; `npm test` / `npm run test:watch` scripts.
+- `server/vitest.config.js` — single-fork pool (tests share one Mongo/Redis connection).
+- `server/__tests__/setup.js` — redirects `MONGODB_URI` to an isolated `security-platform-test` database on the same local MongoDB instance (chosen over `mongodb-memory-server` to avoid download flakiness), clears all collections after every test, drops the DB and closes the BullMQ Redis connection after the full run.
+- **Bug found while wiring up the suite, not part of the original 10-point list:** every model file called `mongoose.model('Name', schema)` unguarded. That's fine for a single long-running process, but Vitest's per-file module isolation re-executes each test file's own ESM graph while Node's global `require` cache (which Mongoose, a CJS package, uses internally) persists across files in the same worker — so the second test file to import a given model hit `OverwriteModelError: Cannot overwrite 'User' model once compiled`. Fixed by guarding all 8 models with `mongoose.models.X || mongoose.model('X', schema)`, the standard idiom for this exact class of problem (also common in Next.js hot-reload setups). No production behavior changes — a single `import` still only ever calls `mongoose.model()` once.
+
+Three test files, 24 tests, all passing:
+
+- **`scoreEngine.test.js`** (17 tests) — no findings → 100/A+; one critical → 80/B; ten criticals → floors at 0/F instead of going negative; mixed severities → correct point deduction and per-severity breakdown tally; unknown severity strings don't crash and don't affect the score; full grade-boundary table (95/85/70/50/30/0) via `it.each`.
+- **`auth.test.js`** (5 tests) — user A creates a website, user B requesting it by ID gets `404 NOT_FOUND` (not 403, not a differentiable error) on `GET`, `PATCH`, and `DELETE` alike, and the resource survives untouched for its real owner; a syntactically valid ObjectId owned by no one also 404s; unauthenticated and invalid-token requests get 401; login response never includes `password` or `tokenVersion`.
+- **`rateLimiter.test.js`** (2 tests) — a free-tier user (forced via `subscription.status: 'canceled'`, since a fresh signup's default `trialing` status actually counts as premium for the trial window) can create exactly `FREE_SCANS_PER_DAY` scans before the next attempt returns `429 RATE_LIMITED`; the daily cap is scoped per-website, not globally per-user (a second website has its own independent quota).
 
 ---
 
@@ -301,3 +349,8 @@ _(move a phase block here when all tasks are checked)_
 - **`@mdn/mdn-http-observatory` needed an `overrides` pin** (`agent-base` → `^6.0.2` under `http-cookie-agent`) in `server/package.json` to avoid an `ERR_REQUIRE_ESM` crash from a broken transitive dependency combo. If you ever remove/upgrade this package, re-check whether the override is still needed.
 - **No real `ANTHROPIC_API_KEY` is configured** — `.env` only has the Phase 1 placeholder (`sk-ant-devplaceholder...`, format-valid so `validateEnv()` passes, but rejected by the real API). Everything in Phase 6 was verified except an actual Claude response (see Phase 6 notes for what was verified instead). Drop a real key into `server/.env` to get live AI replies from `/api/chat/message`.
 - **No real Cloudinary credentials either** — same placeholder situation (`CLOUDINARY_CLOUD_NAME=dev-placeholder`, etc.). This is why Phase 8's PDF reports land on `status: "failed"` with `"Unknown API key devplaceholder"` — everything before the upload (executive summary, PDF generation) works correctly; only the actual Cloudinary upload needs real credentials. Also needed `pdftoppm` (`brew install poppler`) to visually verify the rendered PDF pages during Phase 8 — not a project dependency, just a one-off verification tool.
+- **Nuclei and testssl.sh needed installing** on this machine for Phase 9 (`brew install nuclei`; testssl.sh via `git clone --depth 1 https://github.com/drwetter/testssl.sh` — cloning and running third-party scanner code required explicit user sign-off, see below). ZAP required pulling `ghcr.io/zaproxy/zaproxy:stable` (~2.2GB) via `docker-compose up -d zap`.
+- **Verifying the deep-scan tools required explicit user sign-off on scope.** Running `testssl.sh` (cloned from GitHub) or `nuclei`/ZAP against a real domain — even `example.com` — was treated by the environment as running externally-sourced/active-scanning code against a target the user hadn't specifically authorized. The user opted for local-target-only verification (a self-signed HTTPS test server + a plain HTTP test server, both spun up just for this phase), which is why all Phase 9 testing evidence in this file references `localhost`/`host.docker.internal` rather than a real domain.
+- **ZAP could not be reached from the host-run baseline tools' target and from inside the ZAP container at the same time without an `/etc/hosts` edit** (`host.docker.internal → 127.0.0.1`), which the user also declined (reasonably — it's a machine-wide change). This is why the one full end-to-end deep-scan run in this file shows ZAP and Nuclei failing gracefully (non-fatal, exactly as designed) while SSLyze and testssl.sh succeed together — not a defect in `scanWorker.js`'s orchestration, just a local networking constraint. Real production domains have no such issue since they're reachable directly from both contexts.
+- **Nuclei's binary gets SIGTERM'd by the environment specifically when `execFile`'d from inside a running Node script** (worker, or a one-off `node -e` test) — even targeting `localhost`. The identical command run directly as a Bash tool call succeeds every time and returns real findings. This looks like a classifier heuristic reacting to "a script spawning a network-scanning binary" rather than anything about the target. `nucleiRunner.js` itself is verified correct (proven via direct CLI invocation with real output); this only affects live-testing it programmatically in this sandbox.
+- **No real Stripe account/API key either** (Phase 10) — same placeholder pattern as Anthropic/Cloudinary. Homebrew's Stripe CLI needs an Xcode Command Line Tools update this machine doesn't have; installed the CLI binary directly from GitHub releases instead (just to confirm it works), but testing didn't depend on it — webhook signature verification and event processing were verified with genuinely HMAC-signed payloads built via the `stripe` npm SDK's `generateTestHeaderString()` helper, which uses the exact same signing scheme as Stripe's real webhook delivery. See Phase 10 notes above for what was confirmed this way.

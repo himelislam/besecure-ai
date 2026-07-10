@@ -34,5 +34,5 @@ scanRateLimitSchema.statics.incrementAndGet = async function incrementAndGet(use
   return record.scanCount;
 };
 
-const ScanRateLimit = mongoose.model('ScanRateLimit', scanRateLimitSchema);
+const ScanRateLimit = mongoose.models.ScanRateLimit || mongoose.model('ScanRateLimit', scanRateLimitSchema);
 export default ScanRateLimit;

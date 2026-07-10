@@ -51,5 +51,5 @@ websiteSchema.methods.getVerificationInstructions = function getVerificationInst
   };
 };
 
-const Website = mongoose.model('Website', websiteSchema);
+const Website = mongoose.models.Website || mongoose.model('Website', websiteSchema);
 export default Website;

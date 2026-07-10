@@ -1,0 +1,22 @@
+env:
+  contexts:
+    - name: "target"
+      urls:
+        - "${TARGET_URL}"
+
+jobs:
+  - type: passiveScan-config
+    parameters:
+      maxDuration: 0
+  - type: spider
+    parameters:
+      maxDuration: 2
+      maxDepth: 5
+  - type: passiveScan-wait
+  - type: report
+    parameters:
+      reportTitle: "ZAP Baseline Scan"
+      reportDescription: ""
+      reportDir: "/zap/results"
+      reportFile: "report"
+      template: "traditional-json"

@@ -21,6 +21,20 @@ services:
     networks:
       - app-network
 
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: sap-zap
+    ports:
+      - "8090:8080"
+    # api.disablekey alone isn't enough — ZAP separately allowlists which source
+    # addresses may call the API, and rejects the Docker bridge gateway IP by default
+    # ("... not permitted"). api.addrs.addr.regex + name=.* permits any address, which
+    # is fine for a local dev-only container not exposed beyond 127.0.0.1.
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    restart: unless-stopped
+    networks:
+      - app-network
+
 volumes:
   mongo-data:
   redis-data:

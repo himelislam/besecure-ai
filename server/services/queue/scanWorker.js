@@ -6,7 +6,16 @@ import Vulnerability from '../../models/Vulnerability.js';
 import Website from '../../models/Website.js';
 import { runObservatory } from '../scanner/tools/observatoryRunner.js';
 import { runSSLyze } from '../scanner/tools/sslyzeRunner.js';
-import { normalizeObservatory, normalizeSSLyze } from '../scanner/normalizer.js';
+import { runZapBaseline } from '../scanner/tools/zapRunner.js';
+import { runNuclei } from '../scanner/tools/nucleiRunner.js';
+import { runTestssl } from '../scanner/tools/testsslRunner.js';
+import {
+  normalizeObservatory,
+  normalizeSSLyze,
+  normalizeZAP,
+  normalizeNuclei,
+  normalizeTestssl,
+} from '../scanner/normalizer.js';
 import { calculateScore } from '../scoring/scoreEngine.js';
 import { logger } from '../../utils/logger.js';
 
@@ -31,7 +40,7 @@ async function emitProgress(userId, scanId, stage, progress) {
 }
 
 async function processScan(job) {
-  const { scanId, websiteId, userId, url } = job.data;
+  const { scanId, websiteId, userId, url, type } = job.data;
   const startedAt = new Date();
   const toolsRun = [];
 
@@ -62,7 +71,46 @@ async function processScan(job) {
 
   await emitProgress(userId, scanId, 'ssl-checked', 80);
 
-  if (!observatoryResult && !sslyzeResult) {
+  let zapResult = null;
+  let nucleiResult = null;
+  let testsslResult = null;
+
+  if (type === 'deep') {
+    try {
+      const toolStart = Date.now();
+      zapResult = await runZapBaseline(url);
+      toolsRun.push({ name: 'zap', status: 'success', durationMs: Date.now() - toolStart, error: null });
+    } catch (err) {
+      toolsRun.push({ name: 'zap', status: 'failed', durationMs: null, error: err.message });
+      logger.error({ message: 'ZAP scan failed', error: err.message, scanId });
+    }
+
+    await emitProgress(userId, scanId, 'active-scan-checked', 88);
+
+    try {
+      const toolStart = Date.now();
+      nucleiResult = await runNuclei(url);
+      toolsRun.push({ name: 'nuclei', status: 'success', durationMs: Date.now() - toolStart, error: null });
+    } catch (err) {
+      toolsRun.push({ name: 'nuclei', status: 'failed', durationMs: null, error: err.message });
+      logger.error({ message: 'Nuclei scan failed', error: err.message, scanId });
+    }
+
+    await emitProgress(userId, scanId, 'cve-checked', 92);
+
+    try {
+      const toolStart = Date.now();
+      testsslResult = await runTestssl(url);
+      toolsRun.push({ name: 'testssl', status: 'success', durationMs: Date.now() - toolStart, error: null });
+    } catch (err) {
+      toolsRun.push({ name: 'testssl', status: 'failed', durationMs: null, error: err.message });
+      logger.error({ message: 'testssl.sh scan failed', error: err.message, scanId });
+    }
+
+    await emitProgress(userId, scanId, 'tls-vulns-checked', 95);
+  }
+
+  if (!observatoryResult && !sslyzeResult && !zapResult && !nucleiResult && !testsslResult) {
     const error = 'All scanner tools failed';
     const completedAt = new Date();
     await Scan.findByIdAndUpdate(scanId, {
@@ -79,6 +127,9 @@ async function processScan(job) {
   const allFindings = [
     ...(observatoryResult ? normalizeObservatory(observatoryResult, url) : []),
     ...(sslyzeResult ? normalizeSSLyze(sslyzeResult, url) : []),
+    ...(zapResult ? normalizeZAP(zapResult.alerts, url) : []),
+    ...(nucleiResult ? normalizeNuclei(nucleiResult.results, url) : []),
+    ...(testsslResult ? normalizeTestssl(testsslResult.results, url) : []),
   ];
 
   const seenToolFindingIds = new Set();
