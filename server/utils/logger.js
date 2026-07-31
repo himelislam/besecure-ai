@@ -31,9 +31,15 @@ function scrub(value, seen = new WeakSet()) {
 }
 
 const scrubSecrets = winston.format((info) => {
-  const { level, message, timestamp, ...rest } = info;
-  const scrubbedRest = scrub(rest);
-  return { level, message, timestamp, ...scrubbedRest };
+  // Mutate in place — rebuilding `info` as a new object (e.g. via destructure/spread)
+  // drops Winston's internal Symbol.for('level')/Symbol.for('message') tracking symbols,
+  // since Object.entries() in scrub() only sees string keys. Once those symbols are gone,
+  // Winston can no longer verify the entry's level and silently discards it downstream.
+  for (const key of Object.keys(info)) {
+    if (key === 'level' || key === 'message' || key === 'timestamp') continue;
+    info[key] = isSensitiveKey(key) ? '[REDACTED]' : scrub(info[key]);
+  }
+  return info;
 });
 
 export const logger = winston.createLogger({

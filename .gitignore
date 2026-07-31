@@ -5,3 +5,8 @@ node_modules/
 dist/
 build/
 *.log
+
+# Playwright E2E output (dashboard/e2e/) — deliberately written outside
+# dashboard/ so Vite's dev-server file watcher never sees these writes.
+/e2e-results/
+/e2e-report/
