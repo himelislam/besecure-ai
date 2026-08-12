@@ -56,3 +56,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Both apps deploy the ":latest" tag we just pushed above, so a plain
+      # POST to Dokploy's deploy webhook (no payload needed) is enough to
+      # make it re-pull and redeploy. Fail the job if either hook doesn't
+      # return 2xx, so a broken webhook doesn't silently leave prod stale.
+      - name: Trigger Dokploy redeploy (API)
+        run: curl -sS -f -X POST "${{ secrets.DOKPLOY_API_DEPLOY_HOOK }}"
+
+      - name: Trigger Dokploy redeploy (Worker)
+        run: curl -sS -f -X POST "${{ secrets.DOKPLOY_WORKER_DEPLOY_HOOK }}"
