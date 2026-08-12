@@ -28,7 +28,10 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, select: false },
     name: { type: String, required: true, trim: true, maxlength: 100 },
     avatar: { type: String, default: null },
-    emailVerified: { type: Boolean, default: false },
+    // Email verification is currently disabled platform-wide — new accounts are
+    // usable immediately. Defaulting to true keeps login/authenticateToken's
+    // existing emailVerified checks satisfied without changing that logic.
+    emailVerified: { type: Boolean, default: true },
     emailVerificationToken: { type: String, default: null, select: false },
     passwordResetToken: { type: String, default: null, select: false },
     passwordResetExpires: { type: Date, default: null, select: false },

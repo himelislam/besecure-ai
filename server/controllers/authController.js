@@ -5,7 +5,7 @@ import User from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 import { logger } from '../utils/logger.js';
 import { getStripe } from '../config/stripe.js';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email/emailService.js';
+import { sendPasswordResetEmail } from '../services/email/emailService.js';
 import {
   registerSchema,
   loginSchema,
@@ -60,30 +60,23 @@ export const register = async (req, res, next) => {
     }
 
     const userId = new mongoose.Types.ObjectId();
-    const verificationToken = jwt.sign(
-      { userId: userId.toString(), jti: crypto.randomUUID() },
-      process.env.JWT_EMAIL_SECRET,
-      { expiresIn: process.env.JWT_EMAIL_EXPIRES_IN || '24h' }
-    );
 
+    // Email verification is disabled platform-wide: accounts are created
+    // already verified so signup requires no follow-up step.
     const user = await User.create({
       _id: userId,
       name,
       email,
       password,
-      emailVerificationToken: verificationToken,
+      emailVerified: true,
     });
 
-    // Non-blocking: registration must succeed even if Stripe/email is unavailable
+    // Non-blocking: registration must succeed even if Stripe is unavailable
     createStripeCustomerForUser(user._id, user.email, user.name).catch((err) => {
       logger.error({ message: 'Failed to create Stripe customer', error: err.message, userId: user._id.toString() });
     });
 
-    sendVerificationEmail(user.email, user.name, verificationToken).catch((err) => {
-      logger.error({ message: 'Failed to send verification email', error: err.message, userId: user._id.toString() });
-    });
-
-    res.status(201).json({ success: true, message: 'Verification email sent' });
+    res.status(201).json({ success: true, message: 'Registration successful', data: { user: user.toJSON() } });
   } catch (err) {
     next(err);
   }

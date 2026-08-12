@@ -13,60 +13,36 @@ function extractRefreshCookie(res) {
   return raw ? raw.split(';')[0] : null;
 }
 
-describe('auth flow: register -> verify -> login -> refresh -> change-password', () => {
+describe('auth flow: register -> login -> refresh -> change-password', () => {
   it('walks the full real lifecycle end to end', async () => {
     const email = 'lifecycle@example.com';
 
-    // 1. Register — 201, message only, no tokens issued yet.
+    // 1. Register — 201, account is already verified, no tokens issued yet.
     const registerRes = await request(app)
       .post('/api/auth/register')
       .send({ name: 'Lifecycle User', email, password: PASSWORD });
     expect(registerRes.status).toBe(201);
     expect(registerRes.body.success).toBe(true);
-    expect(registerRes.body.data).toBeUndefined();
+    expect(registerRes.body.data.user.email).toBe(email);
 
-    const userAfterRegister = await User.findOne({ email }).select('+emailVerificationToken');
-    expect(userAfterRegister.emailVerified).toBe(false);
-    expect(userAfterRegister.emailVerificationToken).toBeTruthy();
-    const verifyToken = userAfterRegister.emailVerificationToken;
+    const userAfterRegister = await User.findOne({ email });
+    expect(userAfterRegister.emailVerified).toBe(true);
 
-    // Login before verification fails with the same generic message as any
-    // other invalid-credentials case — never reveals "unverified" specifically.
-    const loginUnverified = await request(app).post('/api/auth/login').send({ email, password: PASSWORD });
-    expect(loginUnverified.status).toBe(401);
-    expect(loginUnverified.body.code).toBe('UNAUTHORIZED');
-    const unverifiedMessage = loginUnverified.body.error;
-
-    // 2. Verify email — 200, flips emailVerified, clears the token (single-use).
-    const verifyRes = await request(app).get('/api/auth/verify-email').query({ token: verifyToken });
-    expect(verifyRes.status).toBe(200);
-    expect(verifyRes.body.success).toBe(true);
-
-    const userAfterVerify = await User.findOne({ email }).select('+emailVerificationToken');
-    expect(userAfterVerify.emailVerified).toBe(true);
-    expect(userAfterVerify.emailVerificationToken).toBeNull();
-
-    // Replaying the exact same token a second time now 400s — it no longer
-    // matches any user's emailVerificationToken (already cleared).
-    const secondVerifyRes = await request(app).get('/api/auth/verify-email').query({ token: verifyToken });
-    expect(secondVerifyRes.status).toBe(400);
-    expect(secondVerifyRes.body.code).toBe('INVALID_TOKEN');
-
-    // 3. Login — identical error/code for wrong password, unverified email,
-    // and a nonexistent email; never lets a caller distinguish which.
+    // 2. Login — identical error/code for wrong password and a nonexistent
+    // email; never lets a caller distinguish which.
     const wrongPasswordRes = await request(app)
       .post('/api/auth/login')
       .send({ email, password: 'WrongPassword123!' });
     expect(wrongPasswordRes.status).toBe(401);
     expect(wrongPasswordRes.body.code).toBe('UNAUTHORIZED');
-    expect(wrongPasswordRes.body.error).toBe(unverifiedMessage);
+    const invalidCredentialsMessage = wrongPasswordRes.body.error;
 
     const nonexistentRes = await request(app)
       .post('/api/auth/login')
       .send({ email: 'no-such-user@example.com', password: PASSWORD });
     expect(nonexistentRes.status).toBe(401);
     expect(nonexistentRes.body.code).toBe('UNAUTHORIZED');
-    expect(nonexistentRes.body.error).toBe(unverifiedMessage);
+    expect(nonexistentRes.body.error).toBe(invalidCredentialsMessage);
 
     const loginRes = await request(app).post('/api/auth/login').send({ email, password: PASSWORD });
     expect(loginRes.status).toBe(200);
