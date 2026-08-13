@@ -17,6 +17,10 @@ export const ErrorCodes = {
   RATE_LIMITED: "RATE_LIMITED",
   INVALID_INPUT: "INVALID_INPUT",
   INTERNAL_ERROR: "INTERNAL_ERROR",
+  // POST /api/billing/create-checkout returns this (409) when the user
+  // already has a live Stripe subscription — checkout can't start a second
+  // one on top of it, they need the billing portal instead.
+  ALREADY_SUBSCRIBED: "ALREADY_SUBSCRIBED",
   // Not in the documented registry, but a real code the API returns (503)
   // whenever the Claude API call itself fails for any reason — auth,
   // rate limit, overload, timeout — server/services/ai/assistant.js wraps
@@ -38,6 +42,7 @@ const FALLBACK_MESSAGES = {
   [ErrorCodes.RATE_LIMITED]: "Too many requests — please slow down and try again.",
   [ErrorCodes.INVALID_INPUT]: "That action isn't allowed right now.",
   [ErrorCodes.INTERNAL_ERROR]: "Something went wrong on our end. Please try again.",
+  [ErrorCodes.ALREADY_SUBSCRIBED]: "You already have an active subscription — manage it from the billing portal.",
   [ErrorCodes.AI_UNAVAILABLE]: "The assistant is temporarily unavailable. Please try again.",
 };
 

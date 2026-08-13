@@ -15,10 +15,15 @@ import { useAuth } from "../../hooks/useAuth";
 import { getSubscription, createCheckout, createPortal } from "../../services/billingService";
 import { getWebsites } from "../../services/websiteService";
 import { ErrorCodes, getApiError } from "../../lib/apiResponse";
-import { getSubscriptionLabel, isPremiumAccess, canManageBilling } from "../../lib/subscriptionRules";
+import { getSubscriptionLabel, getPlanName, isPremiumAccess, canManageBilling } from "../../lib/subscriptionRules";
 
+// `key` must match the backend's subscription.plan values (server/models/User.js)
+// and the `plan` accepted by POST /api/billing/create-checkout — this is what
+// makes each card charge the price it actually advertises, instead of every
+// paid card silently checking out the same Stripe price.
 const plans = [
   {
+    key: "free",
     name: "Free",
     price: 0,
     description: "For getting started with basic security monitoring.",
@@ -33,8 +38,9 @@ const plans = [
     ],
   },
   {
+    key: "premium",
     name: "Pro",
-    price: 19,
+    price: 29,
     description: "For developers and businesses that need deeper protection.",
     popular: true,
     features: [
@@ -48,6 +54,7 @@ const plans = [
     ],
   },
   {
+    key: "business",
     name: "Business",
     price: 49,
     description: "For teams managing multiple websites and applications.",
@@ -118,17 +125,27 @@ const Subscription = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (planKey = "premium") => {
     setCheckoutError("");
     setIsRedirectingPortal(false);
     setPortalError("");
     setIsRedirectingCheckout(true);
 
     try {
-      const { checkoutUrl } = await createCheckout();
+      const { checkoutUrl } = await createCheckout(planKey);
       window.location.href = checkoutUrl; // real Stripe-hosted page — full redirect, not a fetch
-    } catch {
-      setCheckoutError(BILLING_GENERIC_ERROR);
+    } catch (err) {
+      const apiError = getApiError(err);
+
+      // Server-authored and already safe to show verbatim — unlike other
+      // checkout failures (Stripe SDK errors etc.), which stay hidden behind
+      // the generic message so we never leak raw Stripe error text.
+      if (apiError.code === ErrorCodes.ALREADY_SUBSCRIBED) {
+        setCheckoutError(apiError.message);
+      } else {
+        setCheckoutError(BILLING_GENERIC_ERROR);
+      }
+
       setIsRedirectingCheckout(false);
     }
   };
@@ -160,7 +177,11 @@ const Subscription = () => {
   // page keeps in sync above — using it directly (rather than recomputing)
   // keeps this page and the rest of the app reading the exact same value.
   const premiumAccess = subscription ? isPremiumAccess(subscription) : isPremium;
-  const currentPlanName = premiumAccess ? "Pro" : "Free";
+  // The actual purchased tier (Free/Pro/Business), independent of whether
+  // access is currently active — e.g. a past_due Business subscriber still
+  // reads "Business" here, with the separate past-due banner explaining why
+  // access is blocked, rather than being relabeled "Free".
+  const currentPlanName = getPlanName(subscription);
   const trialDaysLeft = status === "trialing" ? daysUntil(subscription?.trialEnd) : null;
   const canManage = canManageBilling(subscription);
 
@@ -243,7 +264,7 @@ const Subscription = () => {
 
             <button
               type="button"
-              onClick={handleCheckout}
+              onClick={() => handleCheckout("premium")}
               disabled={isRedirectingCheckout}
               className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -283,7 +304,7 @@ const Subscription = () => {
 
             <button
               type="button"
-              onClick={canManage ? handleManageBilling : handleCheckout}
+              onClick={canManage ? handleManageBilling : () => handleCheckout("premium")}
               disabled={isRedirectingCheckout || isRedirectingPortal || isLoadingSub}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -340,6 +361,14 @@ const Subscription = () => {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Upgrade anytime as your security requirements grow.
             </p>
+
+            {/* Same error state as the top card's button — repeated here since
+                a checkout failure triggered from one of the plan cards below
+                would otherwise render only near the top of the page, easy to
+                miss without scrolling up. */}
+            {(checkoutError || portalError) && (
+              <p className="mt-3 text-sm text-red-600">{checkoutError || portalError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -393,7 +422,7 @@ const Subscription = () => {
                 <button
                   type="button"
                   disabled={plan.name === currentPlanName || isRedirectingCheckout}
-                  onClick={plan.name === "Free" ? undefined : handleCheckout}
+                  onClick={plan.key === "free" ? undefined : () => handleCheckout(plan.key)}
                   className={`mb-7 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition ${
                     plan.name === currentPlanName
                       ? "cursor-default border border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
@@ -430,11 +459,6 @@ const Subscription = () => {
               </div>
             ))}
           </div>
-
-          <p className="mt-4 text-xs text-gray-400">
-            Pro and Business both upgrade to the same premium plan today — there's no
-            separate Business tier on the backend yet.
-          </p>
         </div>
 
         {/* BILLING INFORMATION */}
@@ -477,7 +501,7 @@ const Subscription = () => {
 
                 <button
                   type="button"
-                  onClick={canManage ? handleManageBilling : handleCheckout}
+                  onClick={canManage ? handleManageBilling : () => handleCheckout("premium")}
                   disabled={isRedirectingCheckout || isRedirectingPortal}
                   className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:border-cyan-500 hover:text-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300"
                 >
@@ -524,7 +548,7 @@ const Subscription = () => {
 
               <button
                 type="button"
-                onClick={canManage ? handleManageBilling : handleCheckout}
+                onClick={canManage ? handleManageBilling : () => handleCheckout("premium")}
                 disabled={isRedirectingCheckout || isRedirectingPortal}
                 className="flex w-full items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-cyan-500 hover:text-cyan-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300"
               >

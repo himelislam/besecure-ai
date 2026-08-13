@@ -5,7 +5,6 @@ import {
   FiActivity,
   FiAlertTriangle,
   FiBarChart2,
-  FiBell,
   FiCreditCard,
   FiFileText,
   FiGlobe,
@@ -104,11 +103,6 @@ const reportItems = [
 ========================================================= */
 
 const accountItems = [
-  {
-    icon: <FiBell />,
-    name: "Notifications",
-    path: "/notifications",
-  },
   {
     icon: <FiCreditCard />,
     name: "Subscription",

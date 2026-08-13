@@ -1,10 +1,11 @@
 import api from "./api";
 import { unwrapResponse } from "../lib/apiResponse";
 
-// No request body. Returns a real Stripe-hosted URL — callers must do a
-// full browser redirect (window.location.href), never fetch-and-render.
-export const createCheckout = async () => {
-  const response = await api.post("/api/billing/create-checkout");
+// plan: "premium" (Pro) or "business". Returns a real Stripe-hosted URL —
+// callers must do a full browser redirect (window.location.href), never
+// fetch-and-render.
+export const createCheckout = async (plan = "premium") => {
+  const response = await api.post("/api/billing/create-checkout", { plan });
   return unwrapResponse(response); // { checkoutUrl }
 };
 

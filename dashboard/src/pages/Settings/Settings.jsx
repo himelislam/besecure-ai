@@ -4,13 +4,11 @@ import PageMeta from "../../components/common/PageMeta";
 import UserMetaCard from "../../components/UserProfile/UserMetaCard";
 import UserInfoCard from "../../components/UserProfile/UserInfoCard";
 import SecuritySettings from "../../components/settings/SecuritySettings";
-import NotificationSettings from "../../components/settings/NotificationSettings";
 import DangerZone from "../../components/settings/DangerZone";
 
 import {
   FiUser,
   FiShield,
-  FiBell,
   FiAlertTriangle,
 } from "react-icons/fi";
 
@@ -24,11 +22,6 @@ const tabs = [
     id: "security",
     label: "Security",
     icon: FiShield,
-  },
-  {
-    id: "notifications",
-    label: "Notifications",
-    icon: FiBell,
   },
   {
     id: "danger",
@@ -52,9 +45,6 @@ export default function Settings() {
 
       case "security":
         return <SecuritySettings />;
-
-      case "notifications":
-        return <NotificationSettings />;
 
       case "danger":
         return <DangerZone />;

@@ -12,7 +12,7 @@ const subscriptionSchema = new mongoose.Schema(
       enum: ['trialing', 'active', 'past_due', 'canceled', 'incomplete'],
       default: 'trialing',
     },
-    plan: { type: String, enum: ['free', 'premium'], default: 'free' },
+    plan: { type: String, enum: ['free', 'premium', 'business'], default: 'free' },
     currentPeriodEnd: { type: Date, default: null },
     trialEnd: {
       type: Date,

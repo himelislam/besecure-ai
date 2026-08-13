@@ -21,6 +21,15 @@ export function isPremiumAccess(subscription) {
   return false;
 }
 
+// Maps the backend's stored plan key to the label shown throughout the UI.
+// "premium" is the historical backend/Stripe name for what the dashboard
+// calls "Pro" — kept as-is server-side to avoid a data migration.
+const PLAN_LABELS = { free: "Free", premium: "Pro", business: "Business" };
+
+export function getPlanName(subscription) {
+  return PLAN_LABELS[subscription?.plan] || "Free";
+}
+
 export function getSubscriptionLabel(subscription) {
   if (!subscription) return "Free";
 

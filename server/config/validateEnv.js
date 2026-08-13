@@ -13,6 +13,7 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().startsWith('sk_'),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_'),
   STRIPE_PREMIUM_PRICE_ID: z.string().startsWith('price_'),
+  STRIPE_BUSINESS_PRICE_ID: z.string().startsWith('price_'),
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
   CLOUDINARY_API_KEY: z.string().min(1),
   CLOUDINARY_API_SECRET: z.string().min(1),

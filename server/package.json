@@ -8,9 +8,9 @@
   },
   "main": "server.js",
   "scripts": {
-    "dev": "node --watch server.js",
+    "dev": "node --watch --watch-path=. server.js",
     "start": "node server.js",
-    "worker": "node --watch workers/index.js",
+    "worker": "node --watch --watch-path=. workers/index.js",
     "worker:start": "node workers/index.js",
     "test": "vitest run",
     "test:watch": "vitest"
