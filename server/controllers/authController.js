@@ -33,10 +33,20 @@ function signRefreshToken(user) {
 }
 
 function refreshCookieOptions() {
+  // Frontend (Vercel) and API (Dokploy) are on different domains in
+  // production, so this cookie is cross-site there — SameSite=Strict (and
+  // even Lax) is never sent cross-site at all, which silently broke every
+  // session restore after a full page reload (including the return from
+  // Stripe Checkout). SameSite=None is required for a cross-site cookie to
+  // be sent, and browsers reject None without Secure, so the two must move
+  // together. Locally, frontend and API are different ports on localhost —
+  // same site, different origin — where Strict already worked fine, which
+  // is why this never surfaced in dev.
+  const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
     maxAge: REFRESH_COOKIE_MAX_AGE,
     path: REFRESH_COOKIE_PATH,
   };
