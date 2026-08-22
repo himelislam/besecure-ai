@@ -24,7 +24,7 @@ import { socket, connectSocket } from "../../lib/socketClient";
 import { ErrorCodes, getApiError } from "../../lib/apiResponse";
 import { useReportForScan } from "../../hooks/useReportForScan";
 import { sortBySeverity, SEVERITY_LABELS } from "../../lib/vulnerabilityRules";
-import { SCAN_STATUS_LABELS, getStageLabel } from "../../lib/scanRules";
+import { SCAN_STATUS_LABELS, getStageLabel, getEstimatedMaxDurationMs, formatDuration } from "../../lib/scanRules";
 
 const POLL_INTERVAL_MS = 5000;
 const FINDINGS_LIMIT = 50; // max the backend allows — covers virtually all real scans in one page
@@ -62,6 +62,7 @@ export default function ScanResults() {
   const [expanded, setExpanded] = useState(null);
 
   const [liveConnected, setLiveConnected] = useState(socket.connected);
+  const [now, setNow] = useState(() => Date.now());
 
   // Not persisted anywhere — GET /api/chat/history has no scanId filter, so
   // there's no way to fetch a previously-generated analysis back on reload.
@@ -212,6 +213,15 @@ export default function ScanResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanId]);
 
+  // Drives the elapsed-time / estimated-remaining display below — only ticks while a
+  // scan is actually in flight, so it doesn't run forever on a page left open.
+  useEffect(() => {
+    if (scan?.status !== "queued" && scan?.status !== "running") return;
+
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [scan?.status]);
+
   const toggleExpanded = (findingId) => {
     setExpanded(expanded === findingId ? null : findingId);
   };
@@ -275,6 +285,10 @@ export default function ScanResults() {
 
   const isInProgress = scan.status === "queued" || scan.status === "running";
   const level = scoreLevel(scan.score);
+
+  const elapsedMs = scan.startedAt ? now - new Date(scan.startedAt).getTime() : 0;
+  const estimatedMaxMs = getEstimatedMaxDurationMs(scan.type);
+  const remainingMs = estimatedMaxMs - elapsedMs;
 
   return (
     <>
@@ -363,6 +377,20 @@ export default function ScanResults() {
                   {getStageLabel(scan.progressMessage)}
                 </p>
               </div>
+
+              {scan.status === "running" && scan.startedAt && (
+                <div className="ml-auto text-right">
+                  <div className="flex items-center justify-end gap-1.5 text-lg font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                    <FiClock className="text-brand-500" />
+                    {formatDuration(elapsedMs)}
+                  </div>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {remainingMs > 0
+                      ? `~${formatDuration(remainingMs)} remaining (est.)`
+                      : "wrapping up — this can run a bit past the estimate"}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="mt-5">

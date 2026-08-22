@@ -55,6 +55,14 @@ async function pollUntilComplete(statusUrl, deadline, scanId) {
       status = parseInt(res.data.status, 10);
       lastError = null;
     } catch (err) {
+      // A scanId that ZAP reports as not existing can never start existing again —
+      // retrying it for the rest of the budget is guaranteed to fail and throws away
+      // every alert the scan already found. Observed in practice (cause not fully
+      // pinned down — possibly overlapping scans against the same ZAP instance) as
+      // "ZAP scan timed out: ... does_not_exist" after a long, otherwise-real scan.
+      // Treat it as "the scan is over" and let the caller fetch whatever alerts exist,
+      // same as a clean status:100 — a real partial result beats a manufactured failure.
+      if (err.response?.data?.code === 'does_not_exist') return;
       lastError = err.response
         ? `HTTP ${err.response.status} from ZAP API (${JSON.stringify(err.response.data).slice(0, 200)})`
         : err.message;
