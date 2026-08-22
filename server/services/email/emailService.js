@@ -20,12 +20,21 @@ function getSmtpTransport() {
 async function sendViaResend({ to, subject, html }) {
   const { Resend } = await import('resend');
   const resend = new Resend(process.env.RESEND_API_KEY);
-  await resend.emails.send({
+  // The Resend SDK resolves with { data, error } — it does NOT throw or reject on an
+  // API-level failure (invalid/unverified sender domain, restricted recipient while on
+  // the shared onboarding@resend.dev sender, rate limit, etc). Without checking `error`
+  // here, every one of those failures was logged as "Email sent" with nothing actually
+  // delivered — silently swallowing exactly the kind of failure that explains
+  // "I don't receive any mail through Resend".
+  const { error } = await resend.emails.send({
     from: `${process.env.EMAIL_FROM_NAME || 'Security Audit Platform'} <${process.env.EMAIL_FROM}>`,
     to,
     subject,
     html,
   });
+  if (error) {
+    throw new Error(`Resend API error: ${error.name || 'unknown'} - ${error.message || JSON.stringify(error)}`);
+  }
 }
 
 async function sendViaSmtp({ to, subject, html }) {
