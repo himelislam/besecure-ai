@@ -6,7 +6,9 @@ import path from 'path';
 import crypto from 'crypto';
 
 const execFileAsync = promisify(execFile);
-const TIMEOUT_MS = 180000;
+// 3 min default — configurable for the same reason ZAP_TIMEOUT_MS/NUCLEI_TIMEOUT_MS
+// are, on top of the --ip one fix below.
+const TIMEOUT_MS = parseInt(process.env.TESTSSL_TIMEOUT_MS, 10) || 180000;
 
 export async function runTestssl(targetUrl) {
   const start = Date.now();

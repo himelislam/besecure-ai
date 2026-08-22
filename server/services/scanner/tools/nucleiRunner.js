@@ -1,6 +1,9 @@
 import { execFile } from 'child_process';
 
-const TIMEOUT_MS = 120000;
+// 2 min default — configurable for the same reason ZAP_TIMEOUT_MS is: a real external
+// target with many matching exposure/misconfiguration templates can genuinely take
+// longer than a fast, mostly-empty test target does.
+const TIMEOUT_MS = parseInt(process.env.NUCLEI_TIMEOUT_MS, 10) || 120000;
 
 export async function runNuclei(targetUrl) {
   const start = Date.now();
