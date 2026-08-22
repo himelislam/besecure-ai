@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const ZAP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes total budget
+// 5 minutes total budget by default — configurable because it was never verified
+// against a real external domain (Phase 9 testing was localhost-only; see PHASES.md),
+// and spider+active-scan combined can easily exceed this on a real site.
+const ZAP_TIMEOUT_MS = parseInt(process.env.ZAP_TIMEOUT_MS, 10) || 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 // ZAP compares an incoming request's Host header port against the port it's actually
 // listening on internally to decide whether the request is for its own API or should
@@ -30,9 +33,16 @@ async function zapGet(url, params) {
 }
 
 async function pollUntilComplete(statusUrl, deadline) {
+  // Tracks the most recent poll failure so a real timeout error says *why* ZAP never
+  // reported completion (connection refused, 403 "not permitted", etc.) instead of the
+  // bare "timed out", which was indistinguishable from a genuinely slow scan and masked
+  // a production ZAP connectivity/config problem for days.
+  let lastError = null;
+
   for (;;) {
     if (Date.now() > deadline) {
-      throw new Error('ZAP scan timed out');
+      const detail = lastError ? `: ${lastError}` : ' (no successful status response was ever received)';
+      throw new Error(`ZAP scan timed out${detail}`);
     }
     // A long-running poll loop against a local/dev ZAP instance can hit a transient
     // connection reset (confirmed in testing — an occasional "socket hang up" mid-scan)
@@ -41,7 +51,11 @@ async function pollUntilComplete(statusUrl, deadline) {
     try {
       const res = await zapGet(statusUrl, apiKeyParam());
       status = parseInt(res.data.status, 10);
-    } catch {
+      lastError = null;
+    } catch (err) {
+      lastError = err.response
+        ? `HTTP ${err.response.status} from ZAP API (${JSON.stringify(err.response.data).slice(0, 200)})`
+        : err.message;
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       continue;
     }
