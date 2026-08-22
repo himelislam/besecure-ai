@@ -1,9 +1,10 @@
 import { execFile } from 'child_process';
 
-// 2 min default — configurable for the same reason ZAP_TIMEOUT_MS is: a real external
-// target with many matching exposure/misconfiguration templates can genuinely take
-// longer than a fast, mostly-empty test target does.
-const TIMEOUT_MS = parseInt(process.env.NUCLEI_TIMEOUT_MS, 10) || 120000;
+// 5 min default — confirmed a real target running the full exposures+misconfiguration
+// template set can produce zero output for the entire old 2min budget and still be
+// legitimately working, not hung (deep scans are async, so this is an acceptable trade
+// for staying thorough rather than narrowing which templates run).
+const TIMEOUT_MS = parseInt(process.env.NUCLEI_TIMEOUT_MS, 10) || 5 * 60 * 1000;
 
 export async function runNuclei(targetUrl) {
   const start = Date.now();

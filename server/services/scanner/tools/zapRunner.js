@@ -1,9 +1,11 @@
 import axios from 'axios';
 
-// 5 minutes total budget by default — configurable because it was never verified
-// against a real external domain (Phase 9 testing was localhost-only; see PHASES.md),
-// and spider+active-scan combined can easily exceed this on a real site.
-const ZAP_TIMEOUT_MS = parseInt(process.env.ZAP_TIMEOUT_MS, 10) || 5 * 60 * 1000;
+// 15 minutes total budget by default. Deep scans are already async (BullMQ + Socket.io
+// progress events), so a longer wall-clock budget doesn't block anything — and ZAP's own
+// active-scan policy is comprehensive by design (confirmed: unbounded by default, ~67min
+// projected against a real site). setOptionMaxScanDurationInMins below still caps ZAP
+// itself so we always get back whatever real alerts it found rather than nothing.
+const ZAP_TIMEOUT_MS = parseInt(process.env.ZAP_TIMEOUT_MS, 10) || 15 * 60 * 1000;
 const POLL_INTERVAL_MS = 2000;
 // ZAP compares an incoming request's Host header port against the port it's actually
 // listening on internally to decide whether the request is for its own API or should
@@ -80,6 +82,21 @@ export async function runZapBaseline(targetUrl) {
   // Confirmed directly against the ZAP container logs.
   const spiderStart = await zapGet(`${base}/JSON/spider/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
   await pollUntilComplete(`${base}/JSON/spider/view/status/`, deadline, spiderStart.data.scan);
+
+  // ZAP's active scan has NO duration cap by default (confirmed: optionMaxScanDurationInMins
+  // is 0, i.e. unbounded) — it runs its full policy (every rule x every discovered
+  // form/param) until naturally done, which on a real site can take far longer than any
+  // timeout we'd want to wait on (measured: ~3% progress in 2 minutes against a real
+  // target, i.e. over an hour projected). Without this, hitting our own ZAP_TIMEOUT_MS
+  // just throws the whole scan away with zero findings. Telling ZAP itself to stop after
+  // N minutes makes it return whatever real alerts it already found instead — same
+  // mechanism a human running ZAP would use, not a workaround.
+  const remainingMs = deadline - Date.now();
+  const maxScanMins = Math.max(1, Math.floor((remainingMs - 30000) / 60000));
+  await zapGet(`${base}/JSON/ascan/action/setOptionMaxScanDurationInMins/`, {
+    Integer: maxScanMins,
+    ...apiKeyParam(),
+  });
 
   const ascanStart = await zapGet(`${base}/JSON/ascan/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
   await pollUntilComplete(`${base}/JSON/ascan/view/status/`, deadline, ascanStart.data.scan);
