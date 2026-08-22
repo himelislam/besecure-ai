@@ -22,7 +22,7 @@ export async function runNuclei(targetUrl) {
         '-silent',
       ],
       { timeout: TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
-      (error, stdout) => {
+      (error, stdout, stderr) => {
         // Nuclei exits non-zero in some environments even on a clean run with findings;
         // what matters is whether we got parseable JSONL output on stdout.
         const results = [];
@@ -37,6 +37,12 @@ export async function runNuclei(targetUrl) {
         }
 
         if (error && results.length === 0) {
+          // execFile's default error.message is just "Command failed: <cmd>" with no
+          // indication of *why* — attach stderr/signal so a real failure is diagnosable
+          // instead of an opaque message (this is also exactly what a killed/SIGTERM'd
+          // process looks like, e.g. if TIMEOUT_MS is too short for the target).
+          if (stderr) error.message += `\nstderr: ${stderr}`;
+          if (error.signal) error.message += ` (killed by signal ${error.signal})`;
           return reject(error);
         }
 

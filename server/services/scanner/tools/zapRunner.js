@@ -32,7 +32,7 @@ async function zapGet(url, params) {
   return axios.get(url, { params, headers: { Host: zapHostHeader() } });
 }
 
-async function pollUntilComplete(statusUrl, deadline) {
+async function pollUntilComplete(statusUrl, deadline, scanId) {
   // Tracks the most recent poll failure so a real timeout error says *why* ZAP never
   // reported completion (connection refused, 403 "not permitted", etc.) instead of the
   // bare "timed out", which was indistinguishable from a genuinely slow scan and masked
@@ -49,7 +49,7 @@ async function pollUntilComplete(statusUrl, deadline) {
     // that has nothing to do with the scan itself; don't let one bad poll kill the scan.
     let status;
     try {
-      const res = await zapGet(statusUrl, apiKeyParam());
+      const res = await zapGet(statusUrl, { scanId, ...apiKeyParam() });
       status = parseInt(res.data.status, 10);
       lastError = null;
     } catch (err) {
@@ -71,11 +71,18 @@ export async function runZapBaseline(targetUrl) {
   const parsedUrl = new URL(targetUrl); // validate before ever sending it anywhere
   const base = zapApiUrl();
 
-  await zapGet(`${base}/JSON/spider/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
-  await pollUntilComplete(`${base}/JSON/spider/view/status/`, deadline);
+  // action/scan/ returns the started scan's own id (e.g. {"scan":"0"}) — view/status/
+  // needs that id back as `scanId` to know *which* scan to report on. Omitting it
+  // isn't a harmless default: ZAP's API rejects the status call outright
+  // (ApiException: DOES_NOT_EXIST (scanId)), and pollUntilComplete's per-poll retry
+  // silently swallows that rejection every 2s until the deadline — surfacing as a
+  // generic "ZAP scan timed out" no matter how fast or trivial the actual scan is.
+  // Confirmed directly against the ZAP container logs.
+  const spiderStart = await zapGet(`${base}/JSON/spider/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
+  await pollUntilComplete(`${base}/JSON/spider/view/status/`, deadline, spiderStart.data.scan);
 
-  await zapGet(`${base}/JSON/ascan/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
-  await pollUntilComplete(`${base}/JSON/ascan/view/status/`, deadline);
+  const ascanStart = await zapGet(`${base}/JSON/ascan/action/scan/`, { url: parsedUrl.toString(), ...apiKeyParam() });
+  await pollUntilComplete(`${base}/JSON/ascan/view/status/`, deadline, ascanStart.data.scan);
 
   const alertsRes = await zapGet(`${base}/JSON/core/view/alerts/`, {
     baseurl: parsedUrl.toString(),
