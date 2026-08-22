@@ -10,6 +10,8 @@ import {
   FiRefreshCw,
   FiX,
 } from "react-icons/fi";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import PageMeta from "../../components/common/PageMeta";
 import { Modal } from "../../components/ui/modal";
 import { useModal } from "../../hooks/useModal";
@@ -28,6 +30,68 @@ const suggestions = [
 
 let localKeySeq = 0;
 const nextLocalKey = () => `local-${Date.now()}-${localKeySeq++}`;
+
+// Shared prose classes for markdown elements so assistant replies (headings,
+// lists, code, tables, etc.) render styled instead of as raw "**bold**" text.
+const markdownComponents = {
+  p: ({ children }) => <p className="mb-2 text-sm leading-6 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 text-sm leading-6 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 text-sm leading-6 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="pl-0.5">{children}</li>,
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-500 underline hover:text-brand-600">
+      {children}
+    </a>
+  ),
+  strong: ({ children }) => <strong className="font-semibold text-gray-800 dark:text-white/90">{children}</strong>,
+  h1: ({ children }) => <h1 className="mb-2 mt-1 text-base font-semibold text-gray-800 dark:text-white/90">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-2 mt-1 text-sm font-semibold text-gray-800 dark:text-white/90">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-1 mt-1 text-sm font-semibold text-gray-800 dark:text-white/90">{children}</h3>,
+  blockquote: ({ children }) => (
+    <blockquote className="mb-2 border-l-2 border-brand-500/40 pl-3 text-sm italic text-gray-500 dark:text-gray-400 last:mb-0">
+      {children}
+    </blockquote>
+  ),
+  // react-markdown v10 no longer passes an `inline` flag to `code`, so inline
+  // spans get the pill styling by default and `pre` strips it back off for
+  // the block case (code inside pre) via the descendant override below.
+  code: ({ children }) => (
+    <code className="rounded bg-gray-200/70 px-1 py-0.5 font-mono text-[13px] dark:bg-white/10">{children}</code>
+  ),
+  pre: ({ children }) => (
+    <pre className="mb-2 overflow-x-auto rounded-lg bg-gray-800 p-3 font-mono text-[13px] text-gray-100 last:mb-0 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-inherit">
+      {children}
+    </pre>
+  ),
+  table: ({ children }) => (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="min-w-full border-collapse text-sm">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => (
+    <th className="border border-gray-200 bg-gray-100 px-2 py-1 text-left font-semibold dark:border-gray-700 dark:bg-white/10">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => <td className="border border-gray-200 px-2 py-1 dark:border-gray-700">{children}</td>,
+};
+
+// Three-dot "assistant is typing" indicator shown while a reply is in flight.
+function TypingIndicator() {
+  return (
+    <div className="flex gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-white">
+        <FiShield size={17} />
+      </div>
+
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-md border border-gray-200 bg-gray-50 px-4 py-3.5 dark:border-gray-800 dark:bg-white/[0.04]">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+      </div>
+    </div>
+  );
+}
 
 export default function AISecurityAssistant() {
   const [messages, setMessages] = useState([]);
@@ -74,7 +138,7 @@ export default function AISecurityAssistant() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isSending]);
 
   const doSend = async (content, existingKey) => {
     const key = existingKey || nextLocalKey();
@@ -254,7 +318,15 @@ export default function AISecurityAssistant() {
                       : "rounded-2xl rounded-tl-md border border-gray-200 bg-gray-50 px-4 py-3 text-gray-700 dark:border-gray-800 dark:bg-white/[0.04] dark:text-gray-300"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap text-sm leading-6">{item.content}</p>
+                  {item.role === "assistant" ? (
+                    <div className="[&>*:last-child]:mb-0">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {item.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-6">{item.content}</p>
+                  )}
 
                   {item.role === "assistant" && item.aiAssisted && (
                     <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
@@ -290,6 +362,8 @@ export default function AISecurityAssistant() {
                 )}
               </div>
             ))}
+
+            {isSending && <TypingIndicator />}
           </div>
         </div>
 
