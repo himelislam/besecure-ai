@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-venv \
       bash git wget unzip ca-certificates \
       chromium fonts-liberation \
+      bsdextrautils \
     && rm -rf /var/lib/apt/lists/*
 
 # SSLyze — isolated venv so pip doesn't fight Debian's "externally managed environment" guard.
@@ -24,12 +25,16 @@ RUN python3 -m venv /opt/sslyze-venv \
     && /opt/sslyze-venv/bin/pip install --no-cache-dir sslyze
 ENV SSLYZE_PYTHON=/opt/sslyze-venv/bin/python3
 
-# Nuclei — matches NUCLEI_BINARY_PATH default in server/.env.example
+# Nuclei — baked in via ENV below (matches the default in server/.env.example) so the
+# binary path works even if NUCLEI_BINARY_PATH is never set in the hosting platform's
+# dashboard — unlike TESTSSL_PATH, this one used to rely solely on that manual step,
+# which is exactly what silently broke it in production (execFile(undefined, ...)).
 RUN wget -q https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_linux_amd64.zip -O /tmp/nuclei.zip \
     && unzip -q /tmp/nuclei.zip -d /usr/local/bin nuclei \
     && rm /tmp/nuclei.zip \
     && chmod +x /usr/local/bin/nuclei \
     && nuclei -update-templates -silent || true
+ENV NUCLEI_BINARY_PATH=/usr/local/bin/nuclei
 
 # testssl.sh — matches TESTSSL_PATH default (./testssl.sh/testssl.sh) rebased to /opt
 RUN git clone --depth 1 https://github.com/drwetter/testssl.sh /opt/testssl.sh
