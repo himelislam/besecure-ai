@@ -291,11 +291,10 @@ export default function LandingPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                          color === "green"
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${color === "green"
                             ? "bg-emerald-50 text-emerald-600"
                             : "bg-amber-50 text-amber-600"
-                        }`}
+                          }`}
                       >
                         {color === "green" ? <FiCheckCircle /> : <FiAlertTriangle />}
                       </div>
@@ -306,11 +305,10 @@ export default function LandingPage() {
                     </div>
 
                     <span
-                      className={`text-[10px] font-semibold ${
-                        color === "green"
+                      className={`text-[10px] font-semibold ${color === "green"
                           ? "text-emerald-600"
                           : "text-amber-600"
-                      }`}
+                        }`}
                     >
                       {status}
                     </span>
@@ -596,7 +594,7 @@ export default function LandingPage() {
         id="pricing"
         className="scroll-mt-24 py-24 sm:py-32"
       >
-        <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl px-5 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-600">
               Pricing
@@ -612,27 +610,40 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-14 grid gap-5 md:grid-cols-2">
+          <div className="mt-14 grid gap-5 md:grid-cols-3">
             {/* FREE */}
             <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-shadow duration-300 hover:shadow-md sm:p-8">
               <p className="text-sm font-semibold text-slate-900">
-                Free Trial
+                Free
               </p>
 
               <p className="mt-2 text-sm text-slate-500">
-                Explore the SecureSphere platform.
+                For getting started with basic security monitoring.
               </p>
 
-              <div className="mt-7 text-4xl font-bold text-slate-950">
-                Free
+              <div className="mt-7 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-950">$0</span>
+                <span className="text-sm text-slate-500">/ month</span>
               </div>
 
-              <div className="mt-7 space-y-4">
+              <Link
+                to="/signup"
+                className="mt-8 flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-cyan-200 hover:bg-cyan-50"
+              >
+                Current Plan
+              </Link>
+
+              <div className="mt-8 border-t border-slate-100 pt-6 space-y-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  What&apos;s included
+                </p>
                 {[
-                  "Website security scanning",
-                  "Security dashboard",
-                  "Vulnerability findings",
-                  "AI Security Assistant",
+                  "3 websites",
+                  "Baseline security scans",
+                  "Basic vulnerability detection",
+                  "Security score",
+                  "OWASP Top 10 overview",
+                  "1 PDF report per scan",
                 ].map((item) => (
                   <div
                     key={item}
@@ -643,40 +654,51 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-
-              <Link
-                to="/signup"
-                className="mt-8 flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-cyan-200 hover:bg-cyan-50"
-              >
-                Start Free
-              </Link>
             </div>
 
-            {/* PREMIUM */}
+            {/* PRO */}
             <div className="relative rounded-3xl border border-cyan-200 bg-gradient-to-b from-cyan-50 to-white p-7 shadow-xl shadow-cyan-100/50 sm:p-8">
               <div className="absolute right-7 top-7 rounded-full bg-cyan-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm shadow-cyan-500/40">
-                Recommended
+                Most Popular
               </div>
 
               <p className="text-sm font-semibold text-slate-900">
-                Premium
+                Pro
               </p>
 
               <p className="mt-2 text-sm text-slate-500">
-                For continuous website security.
+                For developers and businesses that need deeper protection.
               </p>
 
-              <div className="mt-7 text-4xl font-bold text-slate-950">
-                Pro
+              <div className="mt-7 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-950">$29</span>
+                <span className="text-sm text-slate-500">/ month</span>
               </div>
 
-              <div className="mt-7 space-y-4">
+              <p className="mt-2 text-xs font-semibold text-cyan-600">
+                14-day free trial included
+              </p>
+
+              <Link
+                to="/signup"
+                className="mt-8 flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-500/30"
+              >
+                Upgrade to Pro
+                <FiArrowRight className="ml-2" />
+              </Link>
+
+              <div className="mt-8 border-t border-cyan-100 pt-6 space-y-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  What&apos;s included
+                </p>
                 {[
+                  "Unlimited websites",
                   "Unlimited security scans",
-                  "Continuous monitoring",
-                  "Advanced analytics",
-                  "AI security assistance",
-                  "Advanced reports",
+                  "Deep scans (verified domains)",
+                  "AI security recommendations",
+                  "200 AI messages / day",
+                  "Unlimited PDF reports",
+                  "Security roadmap",
                 ].map((item) => (
                   <div
                     key={item}
@@ -687,13 +709,51 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* BUSINESS */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition-shadow duration-300 hover:shadow-md sm:p-8">
+              <p className="text-sm font-semibold text-slate-900">
+                Business
+              </p>
+
+              <p className="mt-2 text-sm text-slate-500">
+                For teams managing multiple websites and applications.
+              </p>
+
+              <div className="mt-7 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-950">$49</span>
+                <span className="text-sm text-slate-500">/ month</span>
+              </div>
 
               <Link
                 to="/signup"
-                className="mt-8 flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-500/30"
+                className="mt-8 flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-cyan-200 hover:bg-cyan-50"
               >
-                Get Started
+                Upgrade to Business
+                <FiArrowRight className="ml-2" />
               </Link>
+
+              <div className="mt-8 border-t border-slate-100 pt-6 space-y-4">
+                <p className="text-sm font-semibold text-slate-900">
+                  What&apos;s included
+                </p>
+                {[
+                  "Everything in Pro",
+                  "Priority AI analysis",
+                  "Team security dashboard",
+                  "Priority support",
+                  "Advanced reporting",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-3 text-sm text-slate-600"
+                  >
+                    <FiCheck className="text-emerald-500" />
+                    {item}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
