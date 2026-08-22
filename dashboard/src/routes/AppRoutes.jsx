@@ -36,6 +36,9 @@ import SecurityRoadmap from "../pages/Roadmap/SecurityRoadmap";
 import AISecurityAssistant from "../pages/AISecurityAssistant/AISecurityAssistant";
 import LandingPage from "../pages/Landing/Home"
 
+import TermsConditions from '../pages/Legal/TermsConditions'
+import PrivacyPolicy from '../pages/Legal/PrivacyPolicy'
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -44,6 +47,8 @@ const AppRoutes = () => {
       ===================================================== */}
 
       <Route path="/" element={<LandingPage />} />
+      <Route path="/terms" element={<TermsConditions />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
 
       {/* ==================== AUTHENTICATION ==================== */}
       <Route element={<AuthLayout />}>
