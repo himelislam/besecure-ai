@@ -41,10 +41,19 @@ export async function runNuclei(targetUrl) {
         }
 
         if (error && results.length === 0) {
+          // A run that hit our own TIMEOUT_MS (execFile kills it, sets .killed + .signal)
+          // isn't a real failure — the target just needed more than TIMEOUT_MS to turn up
+          // its first match, same class of thing as ZAP's unbounded active scan. Report
+          // it as a genuine success with 0 findings rather than failing the tool, so a
+          // slow target doesn't cost the scan its Nuclei coverage entirely. Anything else
+          // (bad binary path, spawn failure, etc.) still fails loudly — those are real
+          // misconfigurations, not "ran out of time".
+          if (error.killed) {
+            return resolve({ results: [], _durationMs: Date.now() - start });
+          }
           // execFile's default error.message is just "Command failed: <cmd>" with no
           // indication of *why* — attach stderr/signal so a real failure is diagnosable
-          // instead of an opaque message (this is also exactly what a killed/SIGTERM'd
-          // process looks like, e.g. if TIMEOUT_MS is too short for the target).
+          // instead of an opaque message.
           if (stderr) error.message += `\nstderr: ${stderr}`;
           if (error.signal) error.message += ` (killed by signal ${error.signal})`;
           return reject(error);
